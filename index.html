@@ -1,14 +1,3356 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <meta name="theme-color" content="#000000"/>
-    <title>Telegram Mini App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <script src="/src/index.tsx" type="module"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Binance Trade Punk</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;200;300;400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style id="loadingScreenStyles">
+    #loadingScreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        background: #000;
+    }
+    #loadingScreen * {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+    }
+    #loadingScreen canvas {
+        display: block;
+        filter: contrast(1.2) brightness(1.1);
+    }
+    
+    .top-corner-button {
+        padding: 8px 15px;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        display: inline-block;
+        text-align: center;
+        border: 2px solid;
+        z-index: 100;
+        position: relative;
+        font-size: 14px;
+        margin-top: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .left-button {
+        background-color: var(--color-primary-purple);
+        color: white;
+        margin-left: 10px;
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+    .right-button {
+        background-color: var(--color-primary-blue);
+        color: white;
+        margin-right: 10px;
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+    .top-corner-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <canvas id="matrixCanvas"></canvas>
+    </div>
+    
+    <div id="app">
+        <div class="relative p-2">
+        <header class="flex relative h-10 gap-2 items-center justify-between px-1 text-sm lg:text-xl">
+            <div class="flex items-center absolute left-0 top-0 z-50">
+                <button 
+                @click="toggleMempoolModal" 
+                class="nav-button header-button"
+            >
+                Mempool
+            </button>
+            </div>
+            
+            <div class="absolute top-0 right-0 z-50">
+                <button 
+                @click="toggleNewsScreen" 
+                class="nav-button header-button"
+            >
+                News
+            </button>
+            </div>
+
+            <Transition>
+            <div v-if="!tickers[ticker]" class="flex flex-grow justify-center absolute w-full">
+                <span class="animate-pulse">
+                {{statusMsg}}
+                </span>
+            </div>
+            </Transition>
+
+            <Transition>
+            <div v-if="tickers[ticker]" class="flex gap-1 flex-grow items-center justify-between delay-200">
+                <div class="w-1/2">
+                <div class="flex gap-1">
+                    <small>{{tickers[ticker]['pair']}}</small>
+                    <span :class="tickers[ticker]['style']">
+                    <span class="mr-1">{{tickers[ticker]['arrow']}}</span>
+                    <span>{{tickers[ticker]['percent'].toFixed(2)}}%</span>
+                    </span>
+                </div>
+                <div>
+                    <span :class="tickers[ticker]['style']">{{parseNumber(tickers[ticker]['close'], tickers[ticker]['asset'])}}</span>
+                </div>
+                </div>
+                <div class="w-1/2">
+                <small class="block">24H Highest</small>
+                <span>{{parseNumber(tickers[ticker]['high'], tickers[ticker]['asset'])}}</span>
+                </div>
+                <div class="w-1/2">
+                <small class="block">24H Lowest</small>
+                <span>{{parseNumber(tickers[ticker]['low'], tickers[ticker]['asset'])}}</span>
+                </div>
+                <div class="w-1/2 hidden">
+                <small class="block">24H Volume</small>
+                <span>{{parseNumber(tickers[ticker]['tokenVolume'], tickers[ticker]['token'])}} {{tickers[ticker]['token']}}</span>
+                </div>
+                <div class="w-1/2 hidden">
+                <small class="block">24H Value</small>
+                <span>{{parseNumber(tickers[ticker]['assetVolume'], tickers[ticker]['asset'])}} {{tickers[ticker]['asset']}}</span>
+                </div>
+            </div>
+            </Transition>
+        </header>
+            <div class="delimiter my-2"></div>
+
+        <section class="mb-2">
+            <div class="flex gap-2 flex-col lg:flex-row">
+            <div class="tickers w-full max-w-[500px] mx-auto"> 
+                <div class="mb-1">
+                <div class="flex items-center">
+                    <h2 class="text-glow font-bold text-xl ml-2"></h2>
+                </div>
+                <div class="delimiter2 my-2"></div>
+                <div class="cb flex items-center" style="max-height: 80px;">
+                    <div class="h-5 w-5 ml-3 mr-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.172 24l-7.387-7.387c-1.388.874-3.024 1.387-4.785 1.387-4.971 0-9-4.029-9-9s4.029-9 9-9 9 4.029 9 9c0 1.761-.514 3.398-1.387 4.785l7.387 7.387-2.828 2.828zm-12.172-8c3.859 0 7-3.14 7-7s-3.141-7-7-7-7 3.14-7 7 3.141 7 7 7z"></path></svg>
+                    </div>
+                    <input v-model="inputSearch" ref="searchInput" class="w-full h-8 bg-transparent focus:outline-none" name="query" placeholder="Search..." type="text" @keypress="handleKeyPress">
+                </div>
+                </div>
+                <div class="mb-1">
+                    <ul class="flex gap-2 justify-between h-8 flex-wrap"> 
+                        <li @click="filterAsset('USDT')" :class="[asset === 'USDT' ? 'active' : '']" class="cb2 flex flex-grow items-center justify-center cursor-pointer">USDT</li>
+                        <li @click="filterAsset('BTC')" :class="[asset === 'BTC' ? 'active' : '']" class="cb2 flex flex-grow items-center justify-center cursor-pointer">BTC</li>
+                        <li @click="filterAsset('FAV')" :class="[asset === 'FAV' ? 'active' : '']" class="cb2 flex flex-grow items-center justify-center cursor-pointer">
+                            FAV
+                            <span v-if="favorites.length > 0" class="text-[--color-primary-yellow]">★</span> 
+                        </li>
+                    </ul>
+                </div>
+                <div class="cb pr-4 pb-4">
+                <div class="header flex items-center h-8 px-2 cursor-pointer">
+                    <div @click="sortBy('token', 'desc')" :class="[sort === 'token' ? 'font-bold' : '']" class="w-1/4">Pair</div>
+                    <div @click="sortBy('close', 'desc')" :class="[sort === 'close' ? 'font-bold' : '']" class="w-1/4 text-center">Price</div>
+                    <div @click="sortBy('percent', 'desc')" :class="[sort === 'percent' ? 'font-bold' : '']" class="w-1/4 text-end pr-2">Change%</div>
+                    <div @click="sortBy('assetVolume', 'desc')" :class="[sort === 'assetVolume' ? 'font-bold' : 'font-normal']" class="w-1/4 text-end pl-2 pr-8">Volume</div>
+                </div>
+
+                <div class="body h-[490px] relative overflow-y-scroll px-2">
+                    <div v-if="Object.keys(tickers).length < 200" class="h-full flex items-center justify-center">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="var(--color-primary-yellow)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    </div>
+                    <div v-else>
+                    <div v-for="ticker in filterTickers" :key="ticker.symbol" class="flex hover:bg-[#eab30840] cursor-pointer" style="font-family: 'Roboto Mono', monospace;">
+                        <div @click="changeTicker(ticker.symbol)" class="w-1/4 dotdotdot silver">{{ticker.pair}}</div>
+                        <div @click="changeTicker(ticker.symbol)" :class="ticker.style" class="w-1/4 dotdotdot text-end">{{formatDisplayPrice(ticker)}}</div>
+                        <div @click="changeTicker(ticker.symbol)" :class="ticker.style" class="w-1/4 dotdotdot text-center">{{ticker.arrow}} {{ticker.percent.toFixed(2)}}</div>
+                        <div class="w-1/4 dotdotdot silver text-end flex gap-2 justify-end">
+                        <span @click="changeTicker(ticker.symbol)" class="text-sm">{{ticker.assetVolume}}</span>
+                        <span @click="setFavorite(ticker.symbol)">
+                            <svg :class="favorites.includes(ticker.symbol) ? 'fill-[--color-primary-yellow]' : 'fill-gray-400'" class="hover:fill-[--color-primary-yellow]" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279-7.416-3.967-7.417 3.967 1.481-8.279-6.064-5.828 8.332-1.151z"/></svg>
+                        </span>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <div v-if="showChartModal" 
+                id="chartModal" 
+                class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                @click="handleChartModalClick">
+                <div class="bg-[--color-bg--300] rounded-lg p-4 w-5/6 max-w-4xl" @click.stop>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-[--color-primary-silver]">Chart for {{ currentTicker }}</h2>
+                    <button @click="toggleChartModal" class="bg-red-500 text-white px-4 py-2 rounded">Close</button>
+                </div>
+
+                <div class="mt-4 mb-4">
+                    <div class="cb relative" style="height: 500px; width: 100%;">
+                    <div :id="'chart_container_modal'" style="height: 100%; width: 100%;"></div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <button @click="setTimeframe('1m')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">1m</button>
+                    <button @click="setTimeframe('5m')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">5m</button>
+                    <button @click="setTimeframe('15m')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">15m</button>
+                    <button @click="setTimeframe('1h')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">1h</button>
+                    <button @click="setTimeframe('4h')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">4h</button>
+                    <button @click="setTimeframe('1d')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">1d</button>
+                    <button @click="setTimeframe('1w')" class="bg-[--color-primary-blue] text-white px-3 py-1 rounded">1w</button>
+                </div>
+                </div>
+            </div>
+
+            <div v-if="showChartScreen" class="chart-screen-overlay">
+                <div class="chart-screen-content">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-[--color-primary-silver]">{{ currentTicker }}</h2>
+                </div>
+                <div class="cb relative flex-grow" style="width: 100%;">
+                    <div id="chart_container_fullscreen" style="height: 100%; width: 100%;"></div>
+                </div>
+                </div>
+            </div>
+
+            <div v-if="showOrderBookModal" 
+                id="orderBookModal" 
+                class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                @click="handleOrderBookModalClick">
+                <div class="bg-[--color-bg--300] rounded-lg p-4 w-5/6 max-w-4xl" @click.stop>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-[--color-primary-silver]">Order Book for {{ currentTicker }}</h2>
+                    <button @click="toggleOrderBookModal" class="bg-red-500 text-white px-4 py-2 rounded">Close</button>
+                </div>
+
+                <div class="mt-4 mb-4">
+                    <div class="form-group relative">
+                        <div class="flex-grow relative">
+                            <input
+                                v-model="orderBookSearchQuery"
+                                @input="filterOrderBookCoins"
+                                @focus="showOrderBookDropdown = true"
+                                type="text"
+                                class="form-control bg-[--color-bg--500] text-white p-2 rounded w-full text-sm"
+                                placeholder="Search ticker..." />
+                            
+                            <div v-if="showOrderBookDropdown && filteredOrderBookCoins.length > 0" 
+                                class="absolute z-50 w-full mt-1 bg-[--color-bg--300] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                <div v-for="ticker in filteredOrderBookCoins" 
+                                    :key="ticker.symbol"
+                                    @click="selectOrderBookCoin(ticker)"
+                                    class="p-2 hover:bg-[--color-primary-purple] cursor-pointer text-sm">
+                                    {{ ticker.pair }} ({{ formatTickerPrice(ticker) }})
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <div class="flex flex-col lg:flex-row gap-4">
+
+                    <div class="cb pr-4 pb-0 flex-1 overflow-hidden">
+                        <h3 class="text-glow font-bold text-lg">Order Book Sale</h3>
+                        <div class="flex gap-2 items-center h-8 px-2">
+                        <div class="flex flex-1 text-[--color-primary-green]">
+                            <div class="w-1/3">Total</div>
+                            <div class="w-1/3 text-center">Size</div>
+                            <div class="w-1/3 text-end">Price</div>
+                        </div>
+                        </div>
+                        <div class="relative overflow-y-scroll px-2 h-[150px]">
+                        <div class="flex gap-2 flex-row">
+                            <div class="flex-1">
+                              <div v-for="order in asks" :key="order[0]" class="flex gap-2" :style="`background: linear-gradient(to right, #ff000030 0 ${(order[2] / maxAsk) * 100}%, #ffffff00 ${(order[2] / maxAsk) * 100}% 100%)`">
+                                <div class="w-1/3 flex-1 text-left">{{ parseNumber((order[0] * order[1]), asset) }}</div>
+                                <div class="w-1/3 flex-1 text-center text-[--color-primary-silver]">{{ parseFloat(order[1]).toFixed(4) }}</div>
+                                <div class="w-1/3 flex-1 text-end text-[--color-primary-silver]">{{ parseFloat(order[0]).toFixed(2) }}</div>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="cb pr-4 pb-0 flex-1 overflow-hidden">
+                        <h3 class="text-glow font-bold text-lg">Order Book Buy</h3>
+                        <div class="flex gap-2 items-center h-8 px-2">
+                        <div class="flex flex-1 text-[--color-primary-green]">
+                            <div class="w-1/3">Total</div>
+                            <div class="w-1/3 text-center">Size</div>
+                            <div class="w-1/3 text-end">Price</div>
+                        </div>
+                        </div>
+                        <div class="relative overflow-y-scroll px-2 h-[150px]">
+                        <div class="flex gap-2 flex-row">
+                            <div class="flex-1">
+                              <div v-for="order in bids" :key="order[0]" class="flex gap-2" :style="`background: linear-gradient(to left, #00ff0030 0 ${(order[2] / maxAsk) * 100}%, #ffffff00 ${(order[2] / maxAsk) * 100}% 100%)`">
+                                <div class="w-1/3 flex-1 text-[--color-primary-silver]">{{parseNumber((order[0] * order[1]), asset)}}</div>
+                                <div class="w-1/3 flex-1 text-center text-[--color-primary-silver]">{{parseFloat((order[1]))}}</div>
+                                <div class="w-1/3 flex-1 text-end text-[--color-primary-green]">{{parseFloat(order[0])}}</div>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
+        </section>
+
+        <div v-if="showSettings" id="staticModal" class="bg-[#00000080] fixed flex items-center justify-center top-0 left-0 right-0 z-50 w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-[calc(100%-1rem)] max-h-full">
+
+            <div class="relative w-full max-w-2xl max-h-full">
+            <div class="relative">
+                <div class="flex">
+                <div class="cb-left mr-[1px]">
+                    <div></div>
+                </div>
+                <div class="cb !bg-[--color-primary-black] px-6 py-2 w-full">
+                    <p class="uppercase text-xl border-b-[1px] border-[#441618] pb-1 mb-2">Settings</p>
+                    <p class="uppercase text-xl text-[--color-primary-blue]">Enable trading</p>
+                    <p class="mb-2">Toggle ON or OFF the ability to trade on this terminal.</p>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                    <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">Enable trading</span>
+                    </label>
+                    <p class="uppercase text-xl text-[--color-primary-blue]">API KEY</p>
+                    <p class="mb-2">Enter your API KEY from Exchange Test and allow IP address <span class="text-[--color-primary-yellow]">127.0.0.1</span>.</p>
+                    <div class="cb w-96">
+                    <input class="h-10 w-full px-4 bg-transparent focus:outline-none" placeholder="Do not enter any live API KEY!">
+                    </div>
+                </div>
+                </div>
+                
+                <div class="mt-10 flex gap-1 justify-center">
+                <div class="cb-style3">
+                    <div data-modal-hide="staticModal" type="button" class="relative flex gap-2 items-center justify-center">
+                    <span class="bg-[--color-primary-blue] rounded-full w-5 h-5 block border-1 border-[--color-primary-black]">
+                        <svg class="scale-75 fill-[--color-primary-black]" clip-rule="evenodd" fill-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m9.831 16.198.002-.003-1.113-.996-.004.004-2.468-2.202c-.144-.128-.322-.191-.5-.191-.417 0-.749.337-.749.75 0 .206.084.412.249.56l2.478 2.21-.767.873-4.71-4.202c-.144-.128-.322-.191-.5-.191-.416 0-.749.337-.749.75 0 .206.084.412.25.56l5.268 4.7c.143.128.321.191.499.191.206 0 .41-.084.559-.25l1.264-1.437 1.677 1.496c.143.128.321.191.499.191.206 0 .409-.084.558-.25l11.234-12.499c.129-.143.192-.322.192-.501 0-.419-.338-.75-.748-.75-.206 0-.411.084-.559.249l-10.735 11.943zm-.451-1.75 1.114.996 8.316-9.182c.128-.143.191-.322.191-.501 0-.419-.337-.75-.748-.75-.206 0-.411.084-.559.249z" fill-rule="nonzero"/></svg>
+                    </span>
+                    <span class="font-semibold">Confirm</span>
+                    </div>
+                </div>
+                <div @click="toggleSettings" class="cb-style3">
+                    <div data-modal-hide="staticModal" type="button" class="relative flex gap-2 items-center justify-center">
+                    <span class="bg-[--color-primary-blue] rounded-full w-5 h-5 block border-1 border-[--color-primary-black] flex items-center justify-center">
+                        <svg class="fill-[--color-primary-black]" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"><path d="M24 3.752l-4.423-3.752-7.771 9.039-7.647-9.008-4.159 4.278c2.285 2.885 5.284 5.903 8.362 8.708l-8.165 9.447 1.343 1.487c1.978-1.335 5.981-4.373 10.205-7.958 4.304 3.67 8.306 6.663 10.229 8.006l1.449-1.278-8.254-9.724c3.287-2.973 6.584-6.354 8.831-9.245z"/></svg>
+                    </span>
+                    <span class="font-semibold">Cancel</span>
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div v-if="showShareModal" 
+            id="shareModal" 
+            class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+            @click="handleShareModalClick">
+            <div class="bg-[--color-bg--300] rounded-lg p-4 w-5/6 max-w-4xl" @click.stop>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-[--color-primary-silver]">Share Tickers</h2>
+                    <button @click="toggleShareModal" class="bg-red-500 text-white px-4 py-2 rounded">Close</button>
+                </div>
+                <div class="mt-4">
+                    <div class="mb-4">
+                        <ul class="flex gap-2 justify-between h-10 flex-wrap"> 
+                            <li @click="shareFilterAsset('USDT')" 
+                                :class="['cb2 flex flex-grow items-center justify-center cursor-pointer', 
+                                        shareAssetFilter === 'USDT' ? 'active' : '']">USDT</li>
+                            <li @click="shareFilterAsset('BTC')" 
+                                :class="['cb2 flex flex-grow items-center justify-center cursor-pointer', 
+                                        shareAssetFilter === 'BTC' ? 'active' : '']">BTC</li>
+                            <li @click="shareFilterAsset('FAV')" 
+                                :class="['cb2 flex flex-grow items-center justify-center cursor-pointer', 
+                                        shareAssetFilter === 'FAV' ? 'active' : '']">
+                                FAV
+                                <span v-if="favorites.length > 0" class="text-[--color-primary-yellow]">★</span> 
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <input v-model="tickerSearch" 
+                        ref="tickerSearchInput"
+                        placeholder="Search tickers..." 
+                        class="w-full p-2 mb-4 border rounded bg-[--color-bg--500] text-white">
+                    <div class="grid grid-cols-4 gap-2 max-h-[250px] overflow-y-auto overflow-x-hidden">
+                        <div v-for="ticker in filteredShareTickers" 
+                            :key="ticker.symbol" 
+                            @click="toggleSelectedTicker(ticker.symbol)"
+                            :class="[
+                                'p-2 rounded cursor-pointer transition-colors text-sm',
+                                selectedTickers.includes(ticker.symbol) 
+                                    ? 'bg-[--color-primary-purple] text-white' 
+                                    : 'bg-[--color-bg--500] hover:bg-[--color-primary-purple] hover:bg-opacity-50'
+                            ]">
+                            <div class="text-xs font-bold">{{ ticker.pair }}</div>
+                            <div :class="[
+                                ticker.style,
+                                selectedTickers.includes(ticker.symbol) ? 'text-white' : ''
+                            ]">
+                                {{ formatTickerPrice(ticker) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-between items-center pb-4">
+                    <div class="text-sm">
+                        Selected: {{ selectedTickers.length }} tickers
+                    </div>
+                    <button @click="shareMultipleTickers" 
+                            :disabled="!selectedTickers.length"
+                            :class="[
+                                'modal-button relative overflow-hidden',
+                                !selectedTickers.length ? 'opacity-50 cursor-not-allowed' : ''
+                            ]">
+                        Share Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showCalculator" id="calculatorModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div class="bg-[--color-bg--300] rounded-lg p-3 w-full max-w-sm mx-4" @click.stop>
+                <div class="flex justify-between items-center mb-2 sticky top-0 bg-[--color-bg--300] z-10">
+                    <h2 class="text-base font-bold text-[--color-primary-silver]">Calculator</h2>
+                    <button @click="toggleCalculator" class="bg-red-500 text-white px-4 py-2 rounded">Close</button>
+                </div>
+                <div class="calculator-container">
+                    <calculator-component 
+                        :settings="calcSettings" 
+                        :coins="coins" 
+                        :tickers="tickers"
+                        @update-settings="updateCalcSettings">
+                    </calculator-component>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showPortfolio" id="portfolioModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div class="bg-[--color-bg--300] rounded-lg p-3 w-full max-w-xl mx-4" @click.stop>
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-base font-bold text-[--color-primary-silver]">Portfolio</h2>
+                    <button @click="togglePortfolio" class="bg-red-500 text-white px-3 py-1 rounded text-sm">Close</button>
+                </div>
+
+                <div class="mb-2 bg-[--color-primary-purple] p-3 rounded-lg">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <div class="text-xs text-white">Total Investment:</div>
+                            <div class="text-base font-bold text-white">${{ totalInvestment.toFixed(2) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-white">Current Value:</div>
+                            <div class="text-base font-bold" 
+                                :class="totalProfit >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'">
+                                ${{ currentValue.toFixed(2) }}
+                                <span class="text-xs ml-2">
+                                    ({{ totalProfit >= 0 ? '+' : '' }}{{ totalProfitPercent.toFixed(2) }}%)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-center">
+                        <div class="text-xs text-white">Total Profit/Loss:</div>
+                        <div class="text-lg font-bold" 
+                            :class="totalProfit >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'">
+                            {{ totalProfit >= 0 ? '+' : '' }}${{ totalProfit.toFixed(2) }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2 bg-[--color-bg--500] p-3 rounded-lg">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+
+                        <div class="form-group relative">
+                            <input
+                                v-model="portfolioForm.searchQuery"
+                                @input="filterPortfolioCoins"
+                                @focus="showPortfolioDropdown = true"
+                                type="text"
+                                class="form-control bg-[--color-bg--300] text-white p-1 rounded w-full text-sm"
+                                placeholder="Search coin..." />
+                            
+                            <div v-if="showPortfolioDropdown && filteredPortfolioCoins.length > 0" 
+                                class="absolute z-50 w-full mt-1 bg-[--color-bg--300] rounded-lg shadow-lg max-h-36 overflow-y-auto">
+                                <div v-for="ticker in filteredPortfolioCoins" 
+                                    :key="ticker.symbol"
+                                    @click="selectPortfolioCoin(ticker)"
+                                    class="p-1 hover:bg-[--color-primary-purple] cursor-pointer text-xs">
+                                    {{ ticker.pair }} ({{ formatTickerPrice(ticker) }})
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <input 
+                                v-model="portfolioForm.amount"
+                                type="number"
+                                min="0"
+                                step="0.00000001"
+                                class="form-control bg-[--color-bg--300] text-white p-1 rounded w-full text-sm"
+                                placeholder="Amount of coins" />
+                        </div>
+
+                        <div class="form-group">
+                            <input 
+                                v-model="portfolioForm.buyPrice"
+                                type="number"
+                                min="0"
+                                step="0.00000001"
+                                class="form-control bg-[--color-bg--300] text-white p-1 rounded w-full text-sm"
+                                placeholder="Buy price per coin" />
+                        </div>
+
+                        <div class="form-group flex items-end">
+                            <button @click="addPortfolioPosition" 
+                                    class="modal-button relative overflow-hidden w-full">
+                                Add Position
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[--color-bg--500] rounded-lg p-3">
+                    <div style="height: 150px; overflow-y: scroll; padding-right: 4px;" class="portfolio-positions-container">
+                        <div v-for="(position, index) in portfolioPositions" 
+                            :key="index"
+                            class="bg-[--color-bg--300] p-2 rounded-lg mb-2">
+                            <div class="flex justify-between items-center">
+                                <div class="flex-1">
+                                    <div class="font-bold text-sm">{{ position.pair }}</div>
+                                    <div class="text-xs">
+                                        Amount: {{ position.amount }} coins
+                                        <span class="mx-1">|</span>
+                                        Buy Price: ${{ position.buyPrice }}
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div :class="position.profit >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'" class="font-bold text-sm">
+                                        {{ position.profit >= 0 ? '+' : '' }}${{ position.profit.toFixed(2) }}
+                                    </div>
+                                    <div :class="position.profitPercent >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'" class="text-xs">
+                                        {{ position.profitPercent >= 0 ? '+' : '' }}{{ position.profitPercent.toFixed(2) }}%
+                                    </div>
+                                </div>
+                                <button @click="removePosition(index)" class="ml-2 text-red-500 hover:text-red-700 text-sm">
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showNewsScreen" class="news-screen-overlay">
+            <div class="news-screen-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-[--color-primary-silver]">Crypto News</h2>
+                <button @click="toggleNewsScreen" class="bg-red-500 text-white px-3 py-1 rounded">Close</button>
+            </div>
+
+            <div v-if="newsItems.length === 0" class="flex justify-center items-center h-[200px]">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="var(--color-primary-yellow)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Loading news...</span>
+            </div>
+
+            <div v-else>
+                <div v-for="(item, index) in newsItems" :key="index" class="news-item">
+                <div class="news-item-title">{{ item.title }}</div>
+                <div class="news-item-source">{{ item.source }}</div>
+                <div class="news-item-content">{{ item.summary }}</div>
+                <div class="news-item-footer">
+                    <a :href="item.url" target="_blank" class="news-item-link">Read more</a>
+                    <span class="news-item-date" v-if="item.published_on">{{ formatNewsDate(item.published_on) }}</span>
+                    <span class="news-item-date" v-else>New</span>
+                </div>
+                </div>
+            </div>
+
+            <div v-if="newsItems.length > 0" class="flex justify-center mt-4 mb-4">
+                <button @click="loadMoreNews" class="load-more-news-button" :disabled="newsLoading">
+                <span v-if="!newsLoading">Load More</span>
+                <span v-else class="flex items-center justify-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                </span>
+                </button>
+            </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="fixed bottom-0 left-0 right-0 bg-[--color-primary-black] border-t-2 border-[--color-primary-purple] z-[150] py-3">
+        <div class="container mx-auto flex justify-center">
+            <button v-if="!showChartScreen" @click="closeAllModals(); toggleChartScreen()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Chart
+            </button>
+            <button v-else @click="closeAllModals(); toggleChartScreen()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Tickers
+            </button>
+            <button @click="closeAllModals(); toggleOrderBookModal()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Order Book
+            </button>
+            <button @click="closeAllModals(); openShareModal()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Share
+            </button>
+            <button @click="closeAllModals(); toggleCalculator()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Calculator
+            </button>
+            <button @click="closeAllModals(); togglePortfolio()" class="nav-button bg-[--color-primary-blue] text-white rounded font-rajdhani">
+            Portfolio
+            </button>
+        </div>
+        </div>
+
+        <div v-if="showMempoolModal" 
+            id="mempoolModal" 
+            class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-[--color-bg--300] rounded-lg p-4 max-h-[80vh] overflow-y-auto" style="width: 90%; max-width: 600px;" @click.stop>
+            <div class="flex justify-between items-center">
+            <h2 class="text-lg font-bold text-[--color-primary-silver]">Bitcoin Mempool</h2>
+            <button @click="toggleMempoolModal" class="bg-red-500 text-white px-4 py-2 rounded">Close</button>
+            </div>
+            
+            <div v-if="mempoolLoading" class="flex justify-center items-center p-10">
+            <svg class="animate-spin h-10 w-10 text-[--color-primary-yellow]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            </div>
+            
+            <div v-else class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div class="bg-[--color-bg--500] rounded-lg p-4 col-span-1 md:col-span-2">
+                <h3 class="text-md font-bold text-[--color-primary-yellow] mb-2">Bitcoin Address Lookup</h3>
+                <div class="flex">
+                <input 
+                    v-model="btcAddressInput" 
+                    type="text" 
+                    placeholder="Enter BTC address" 
+                    class="flex-1 px-3 py-2 bg-[--color-bg--300] text-white rounded-l focus:outline-none"
+                />
+                <button 
+                    @click="lookupBtcAddress" 
+                    class="bg-[--color-primary-purple] text-white px-3 py-2 rounded-r"
+                    :disabled="addressLoading"
+                >
+                    <span v-if="!addressLoading">Lookup</span>
+                    <svg v-else class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+                </div>
+                
+                <div v-if="addressData" class="mt-4 bg-[--color-bg--300] p-3 rounded">
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="text-sm text-[--color-primary-silver]">Balance:</div>
+                    <div class="text-sm font-mono text-white">{{ formatBtc(addressData.chain_stats?.funded_txo_sum - addressData.chain_stats?.spent_txo_sum) }} BTC</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Transactions:</div>
+                    <div class="text-sm font-mono text-white">{{ addressData.chain_stats?.tx_count || 0 }}</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Received:</div>
+                    <div class="text-sm font-mono text-white">{{ formatBtc(addressData.chain_stats?.funded_txo_sum) }} BTC</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Spent:</div>
+                    <div class="text-sm font-mono text-white">{{ formatBtc(addressData.chain_stats?.spent_txo_sum) }} BTC</div>
+                </div>
+                </div>
+                
+                <div v-if="addressError" class="mt-4 bg-red-900 text-white p-3 rounded text-sm">
+                {{ addressError }}
+                </div>
+            </div>
+
+            <div class="bg-[--color-bg--500] rounded-lg p-4 col-span-1 md:col-span-2">
+                <h3 class="text-md font-bold text-[--color-primary-yellow] mb-2">Transaction Lookup</h3>
+                <div class="flex">
+                <input 
+                    v-model="txIdInput" 
+                    type="text" 
+                    placeholder="Enter Transaction ID (TXID)" 
+                    class="flex-1 px-3 py-2 bg-[--color-bg--300] text-white rounded-l focus:outline-none"
+                />
+                <button 
+                    @click="lookupBtcTransaction" 
+                    class="bg-[--color-primary-purple] text-white px-3 py-2 rounded-r"
+                    :disabled="txLoading"
+                >
+                    <span v-if="!txLoading">Lookup</span>
+                    <svg v-else class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+                </div>
+                
+                <div v-if="txData" class="mt-4 bg-[--color-bg--300] p-3 rounded">
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="text-sm text-[--color-primary-silver]">Transaction ID:</div>
+                    <div class="text-sm font-mono text-white truncate">{{ txData.txid }}</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Status:</div>
+                    <div class="text-sm font-mono text-white">
+                    <span v-if="txData.status && txData.status.confirmed" class="text-[--color-primary-green]">Confirmed</span>
+                    <span v-else class="text-[--color-primary--500]">Unconfirmed</span>
+                    </div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Block Height:</div>
+                    <div class="text-sm font-mono text-white">{{ txData.status && txData.status.block_height ? txData.status.block_height : 'Pending' }}</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Size:</div>
+                    <div class="text-sm font-mono text-white">{{ txData.size }} bytes</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Weight:</div>
+                    <div class="text-sm font-mono text-white">{{ txData.weight }} WU</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Fee:</div>
+                    <div class="text-sm font-mono text-white">{{ formatBtc(txData.fee) }} BTC</div>
+                    
+                    <div class="text-sm text-[--color-primary-silver]">Time:</div>
+                    <div class="text-sm font-mono text-white">{{ txData.status && txData.status.block_time ? new Date(txData.status.block_time * 1000).toLocaleString() : 'Pending' }}</div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="text-sm text-[--color-primary-silver] mb-1">Inputs:</div>
+                    <div class="text-xs bg-[--color-bg--500] p-2 rounded max-h-20 overflow-y-auto">
+                    <div v-for="(vin, index) in txData.vin.slice(0, 3)" :key="index" class="mb-1">
+                        <span class="text-[--color-primary-green]">{{ formatBtc(vin.prevout ? vin.prevout.value : 0) }} BTC</span> 
+                        <span class="text-[--color-primary-silver]">from</span> 
+                        <span class="text-white truncate">{{ vin.prevout ? vin.prevout.scriptpubkey_address : 'Unknown' }}</span>
+                    </div>
+                    <div v-if="txData.vin.length > 3" class="text-[--color-primary-silver]">... and {{ txData.vin.length - 3 }} more inputs</div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="text-sm text-[--color-primary-silver] mb-1">Outputs:</div>
+                    <div class="text-xs bg-[--color-bg--500] p-2 rounded max-h-20 overflow-y-auto">
+                    <div v-for="(vout, index) in txData.vout.slice(0, 3)" :key="index" class="mb-1">
+                        <span class="text-[--color-primary--500]">{{ formatBtc(vout.value) }} BTC</span> 
+                        <span class="text-[--color-primary-silver]">to</span> 
+                        <span class="text-white truncate">{{ vout.scriptpubkey_address || 'Unknown' }}</span>
+                    </div>
+                    <div v-if="txData.vout.length > 3" class="text-[--color-primary-silver]">... and {{ txData.vout.length - 3 }} more outputs</div>
+                    </div>
+                </div>
+                </div>
+                
+                <div v-if="txError" class="mt-4 bg-red-900 text-white p-3 rounded text-sm">
+                {{ txError }}
+                </div>
+                
+                <!-- Current Hashrate Section -->
+                <div class="bg-[--color-bg--500] rounded-lg p-4">
+                    <h3 class="text-md font-bold text-[--color-primary-yellow] mb-2">Current Hashrate</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="text-sm text-[--color-primary-silver]">Current Hashrate:</div>
+                        <div class="text-sm font-mono text-white">{{ hashrateData.currentHashrate }}</div>
+                        <!-- <div class="text-sm text-[--color-primary-silver]">Average Hashrate:</div>
+                        <div class="text-sm font-mono text-white">{{ hashrateData.averageHashrate }}</div>  Removed Average Hashrate -->
+                        <div class="text-sm text-[--color-primary-silver]">Current Difficulty:</div>
+                        <div class="text-sm font-mono text-white">{{ hashrateData.currentDifficulty }}</div>
+                    </div>
+                </div>
+                <div class="bg-[--color-bg--500] rounded-lg p-4 col-span-1 md:col-span-2">
+                    <h3 class="text-md font-bold text-[--color-primary-yellow] mb-2">Latest Blocks</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full latest-blocks-table">
+                        <thead>
+                        <tr class="text-[--color-primary-silver] text-left">
+                            <th class="px-2 py-1">Height</th>
+                            <!-- <th class="px-2 py-1">Hash</th> --> <!-- Removed Hash column -->
+                            <th class="px-2 py-1">Time</th>
+                            <th class="px-2 py-1">Size</th>
+                            <th class="px-2 py-1">Tx Count</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="block in mempoolData.blocks" :key="block.id" class="text-white hover:bg-[--color-bg--300]">
+                            <td class="px-2 py-1 font-mono">{{ block.height }}</td>
+                            <!--<td class="px-2 py-1 font-mono text-xs truncate max-w-[120px]">{{ block.id }}</td> --> <!-- Removed Hash column -->
+                            <td class="px-2 py-1">{{ formatTimeAgo(block.timestamp) }}</td>
+                            <td class="px-2 py-1">{{ formatBytes(block.size) }}</td>
+                            <td class="px-2 py-1">{{ block.tx_count }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="pb-40"></div>
+    </div>
+
+    <script>
+
+    const canvas = document.getElementById('matrixCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    const chars = 'BITCOIN';
+    const fontSize = 14;
+    const columns = Math.floor(canvas.width / fontSize);
+    
+    const drops = Array.from({length: columns}, () => ({
+        y: Math.random() * canvas.height,
+        speed: 2 + Math.random() * 3,
+        length: 20 + Math.floor(Math.random() * 15),
+        chars: Array.from({length: 35}, () => Math.random() * chars.length | 0),
+        lastUpdate: performance.now(),
+        brightness: 0.7 + Math.random() * 0.3,
+        glowIntensity: 0.9 + Math.random() * 0.3,
+        changeRate: 2 + Math.random() * 3
+    }));
+    
+    const palettes = [
+        {
+            primary: '#00FF41',
+            highlight: '#FFFFFF',
+            fade: 'rgba(0, 15, 2, 0.18)',
+            background: 'rgba(0, 0, 0, 0.9)',
+            glowStrength: 15,
+            secondaryColors: ['#4AFF41', '#2AFF81', '#00FF00']
+        },
+        {
+            primary: '#FF10F0',
+            highlight: '#FFFFFF',
+            fade: 'rgba(16, 0, 16, 0.18)',
+            background: 'rgba(2, 0, 6, 0.9)',
+            secondaryColors: ['#FF1493', '#FF00FF', '#00FFFF', '#FF4500', '#4169E1'],
+            glowStrength: 18
+        },
+        {
+            primary: '#4CAF50',
+            highlight: '#FFFFFF',
+            fade: 'rgba(0, 10, 10, 0.18)',
+            background: 'rgba(0, 0, 0, 0.9)',
+            secondaryColors: ['#00FF87', '#1E90FF', '#7FFF00', '#FF1493', '#00FFFF'],
+            glowStrength: 15
+        }
+    ];
+    
+    let currentPalette = 0;
+    let lastTime = 0;
+    const FPS = 60;
+    const frameTime = 1000 / FPS;
+    
+    canvas.addEventListener('click', () => {
+        currentPalette = (currentPalette + 1) % palettes.length;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    });
+    
+    function getColorWithBrightness(color, brightness) {
+        if (color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgb(${Math.min(255, r * brightness)},${Math.min(255, g * brightness)},${Math.min(255, b * brightness)})`;
+        }
+        const rgb = color.match(/\d+/g);
+        if (rgb) {
+            return `rgb(${rgb.map(c => Math.min(255, parseInt(c) * brightness)).join(',')})`;
+        }
+        return color;
+    }
+    
+    function draw(timestamp) {
+        if (timestamp - lastTime < frameTime) {
+            requestAnimationFrame(draw);
+            return;
+        }
+        
+        const deltaTime = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+    
+        ctx.fillStyle = palettes[currentPalette].fade;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+        const palette = palettes[currentPalette];
+    
+        drops.forEach((drop, i) => {
+            drop.y += drop.speed * (1 + Math.random() * 0.2);
+            
+            if (timestamp - drop.lastUpdate > 1000 / drop.changeRate) {
+                drop.chars = [...drop.chars.slice(1), Math.floor(Math.random() * chars.length)];
+                drop.lastUpdate = timestamp;
+            }
+    
+            drop.chars.forEach((charIndex, j) => {
+                const char = chars[charIndex];
+                const y = drop.y - j * fontSize;
+                
+                if (y < -fontSize || y > canvas.height + fontSize) return;
+    
+                if (currentPalette === 1) {
+                    const colorIndex = Math.floor((timestamp / 200 + i * 0.1) % palette.secondaryColors.length);
+                    ctx.fillStyle = getColorWithBrightness(palette.secondaryColors[colorIndex], drop.brightness);
+                    ctx.shadowColor = palette.secondaryColors[colorIndex];
+                    ctx.shadowBlur = palette.glowStrength * drop.glowIntensity * (1 - j / drop.length);
+                } else if (currentPalette === 2) {
+                    const colorIndex = Math.floor((i + timestamp * 0.001) % palette.secondaryColors.length);
+                    ctx.fillStyle = getColorWithBrightness(palette.secondaryColors[colorIndex], drop.brightness);
+                    ctx.shadowColor = palette.secondaryColors[colorIndex];
+                    ctx.shadowBlur = palette.glowStrength * drop.glowIntensity * (1 - j / drop.length);
+                } else {
+                    const alpha = Math.pow(1 - j / drop.length, 1.5);
+                    ctx.fillStyle = j === 0 ? 
+                        palette.highlight : 
+                        `rgba(0, 255, 65, ${alpha * drop.brightness})`;
+                    ctx.shadowColor = palette.primary;
+                    ctx.shadowBlur = j === 0 ? palette.glowStrength * drop.glowIntensity : 0;
+                }
+    
+                if (Math.random() < 0.002) {
+                    ctx.fillStyle = palette.highlight;
+                    ctx.shadowBlur = palette.glowStrength * 2;
+                }
+    
+                const fontSize2 = fontSize * (j === 0 ? 1.2 : 1);
+                ctx.font = `bold ${fontSize2}px monospace`;
+                
+                const xPos = i * fontSize + (Math.random() < 0.05 ? Math.random() * 2 - 1 : 0);
+                ctx.fillText(char, xPos, y);
+            });
+    
+            if (drop.y - drop.length * fontSize > canvas.height) {
+                drop.y = -drop.length * fontSize * Math.random();
+                drop.speed = 2 + Math.random() * 3;
+                drop.length = 20 + Math.floor(Math.random() * 15);
+                drop.brightness = 0.7 + Math.random() * 0.3;
+                drop.changeRate = 2 + Math.random() * 3;
+            }
+        });
+    
+        ctx.shadowBlur = 0;
+        requestAnimationFrame(draw);
+    }
+    
+    drops.forEach(drop => {
+        drop.y = Math.random() * canvas.height;
+    });
+    
+    const animationId = requestAnimationFrame(draw);
+    
+    window.addEventListener('load', function() {
+        
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loadingScreen');
+            if (loadingScreen) {
+                loadingScreen.style.opacity = '0';
+                loadingScreen.style.transition = 'opacity 0.5s ease';
+                
+                setTimeout(() => {
+                    cancelAnimationFrame(animationId);
+                    loadingScreen.remove();
+                    const loadingStyles = document.getElementById('loadingScreenStyles');
+                    if (loadingStyles) loadingStyles.remove();
+                }, 500);
+            }
+        }, 1000);
+    });
+    </script>
+    
+    <script>
+    const { createApp } = Vue
+    
+    const CalculatorComponent = {
+        props: ['settings', 'coins', 'tickers'],
+        template: `
+        <div class="calculator-wrapper">
+            <!-- Input Section -->
+            <div class="input-section bg-[--color-bg--500] rounded-lg p-2">
+                <div class="grid grid-cols-1 gap-2">
+                    <!-- Coin Selection -->
+                    <div class="form-group relative">
+                        <label class="block text-xs text-[--color-primary-silver]">Select Coin</label>
+                        <input
+                            v-model="searchQuery"
+                            @input="filterCoins"
+                            @focus="showDropdown = true"
+                            type="text"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="Search coin..." />
+                        
+                        <!-- Dropdown for filtered results -->
+                        <div v-if="showDropdown && filteredCoins.length > 0" 
+                            class="absolute z-50 w-full mt-1 bg-[--color-bg--300] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            <div v-for="ticker in filteredCoins" 
+                                :key="ticker.symbol"
+                                @click="selectCoin(ticker)"
+                                class="p-2 hover:bg-[--color-primary-purple] cursor-pointer text-sm">
+                                {{ ticker.pair }} ({{ formatPrice(ticker.close) }})
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Investment -->
+                    <div class="form-group">
+                        <label class="block text-xs text-[--color-primary-silver]">Initial Investment ($)</label>
+                        <input 
+                            v-model="settings.investment"
+                            @change="saveChanges()"
+                            type="number"
+                            min="0"
+                            inputmode="decimal"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="---" />
+                    </div>
+
+                    <!-- Initial Coin Price -->
+                    <div class="form-group">
+                        <label class="block text-xs text-[--color-primary-silver]">Initial Coin Price</label>
+                        <input
+                            v-model="settings.initialPrice"
+                            @change="saveChanges()"
+                            type="number"
+                            min="0"
+                            inputmode="decimal"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="---" />
+                    </div>
+
+                    <!-- Projected Coin Price -->
+                    <div class="form-group">
+                        <label class="block text-xs text-[--color-primary-silver]">Target Coin Price</label>
+                        <input
+                            v-model="settings.projectedPrice"
+                            @change="saveChanges()"
+                            type="number"
+                            min="0"
+                            inputmode="decimal"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="---" />
+                    </div>
+
+                    <!-- Service Fee -->
+                    <div class="form-group">
+                        <label class="block text-xs text-[--color-primary-silver]">Fee (%)</label>
+                        <input
+                            v-model="settings.serviceFee"
+                            @change="saveChanges()"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="---" />
+                    </div>
+
+                    <!-- Tax Rate -->
+                    <div class="form-group">
+                        <label class="block text-xs text-[--color-primary-silver]">Tax (%)</label>
+                        <input
+                            v-model="settings.taxRate"
+                            @change="saveChanges()"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            class="form-control bg-[--color-bg--300] text-white p-1.5 rounded w-full text-sm"
+                            placeholder="---" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div v-if="hasValidInputs" class="results-section bg-[--color-bg--500] rounded-lg p-2 mt-2">
+                <div class="grid grid-cols-1 gap-2">
+                    <div class="result-item p-2 bg-[--color-bg--300] rounded">
+                        <div class="text-xs text-[--color-primary-silver]">Coins:</div>
+                        <div class="text-sm font-bold text-white">{{ totalCoins.toFixed(8) }}</div>
+                    </div>
+
+                    <div class="result-item p-2 bg-[--color-bg--300] rounded">
+                        <div class="text-xs text-[--color-primary-silver]">Fee:</div>
+                        <div class="text-sm font-bold text-[--color-primary--500]">{{ fees | currency }}</div>
+                    </div>
+
+                    <div class="result-item p-2 bg-[--color-bg--300] rounded">
+                        <div class="text-xs text-[--color-primary-silver]">Tax:</div>
+                        <div class="text-sm font-bold text-[--color-primary-yellow]">{{ taxes | currency }}</div>
+                    </div>
+
+                    <div class="result-item p-2 bg-[--color-primary-purple] rounded">
+                        <div class="text-xs text-white">Result:</div>
+                        <div class="text-base font-bold" :class="projectedTotal >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'">
+                            {{ projectedTotal >= 0 ? '+' : '' }}{{ projectedTotal | currency }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`,
+        data() {
+            return {
+                searchQuery: '',
+                showDropdown: false,
+                selectedCoin: ''
+            };
+        },
+        computed: {
+            filteredCoins() {
+                if (!this.tickers || !this.searchQuery) return [];
+                const query = this.searchQuery.toLowerCase();
+                return Object.values(this.tickers)
+                    .filter(ticker => {
+                        const symbol = ticker.symbol.toLowerCase();
+                        const pair = ticker.pair.toLowerCase();
+                        return (symbol.includes(query) || pair.includes(query)) && 
+                            ticker.symbol.endsWith('USDT');
+                    })
+                    .slice(0, 5) 
+                    .sort((a, b) => {
+
+                        const aExact = a.symbol.toLowerCase().startsWith(query);
+                        const bExact = b.symbol.toLowerCase().startsWith(query);
+                        if (aExact && !bExact) return -1;
+                        if (!aExact && bExact) return 1;
+                        return a.pair.localeCompare(b.pair);
+                    });
+            },
+            hasValidInputs() {
+                return this.settings.investment > 0 && 
+                    this.settings.initialPrice > 0 && 
+                    this.settings.projectedPrice > 0;
+            },
+            totalCoins() {
+                return this.settings.investment / this.settings.initialPrice;
+            },
+            projectedSubTotal() {
+                return (this.settings.projectedPrice * this.totalCoins);
+            },
+            projectedProfit() {
+                return (this.projectedSubTotal - this.settings.investment);
+            },
+            fees() {
+                return this.settings.investment * (this.settings.serviceFee / 100);
+            },
+            taxes() {
+                return (this.projectedProfit - this.fees) * (this.settings.taxRate / 100);
+            },
+            projectedTotal() {
+                return this.projectedProfit - this.fees - this.taxes;
+            }
+        },
+        methods: {
+            filterCoins() {
+                this.showDropdown = true;
+            },
+            selectCoin(ticker) {
+                this.searchQuery = ticker.pair;
+                this.selectedCoin = ticker.symbol;
+                this.showDropdown = false;
+                this.updateCoinPrice();
+            },
+            formatPrice(price) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(price);
+            },
+            updateCoinPrice() {
+                if (this.selectedCoin && this.tickers[this.selectedCoin]) {
+                    this.settings.initialPrice = parseFloat(this.tickers[this.selectedCoin].close);
+                    this.settings.projectedPrice = parseFloat(this.tickers[this.selectedCoin].close);
+                    this.saveChanges();
+                }
+            },
+            saveChanges() {
+                this.$emit('update-settings', this.settings);
+            }
+        },
+        mounted() {
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.form-group')) {
+                    this.showDropdown = false;
+                }
+            });
+        },
+        beforeUnmount() {
+            document.removeEventListener('click', () => {});
+        }
+    };
+    
+    createApp({
+        components: {
+            'calculator-component': CalculatorComponent
+        },
+        data() {
+            return {
+                sock: null,
+                status: 0,
+                tickers: {},
+                cache: [],
+                trades: [],
+                favorites: JSON.parse(localStorage.getItem('favorites')) || ['BTCUSDT'],
+                interval: '1d',
+                digitalClock: null,
+                asks: [],
+                bids: [],
+                maxAsk: 0,
+                bgImageUrl: null,
+                showSettings: false,
+                showLatestTrades: true,
+                inputSearch: '',
+                asset: 'USDT', 
+                sort: 'token',
+                order: 'desc',
+                ticker: 'BTCUSDT',
+                container_id: 'vue-trading-view',
+                change: 'change',
+                options: {
+                    autosize: true,
+                    symbol: 'BINANCE:BTCUSDT',
+                    interval: '30',
+                    timezone: 'Europe/Moscow',
+                    theme: 'dark',
+                    style: '1',
+                    locale: 'en',
+                    toolbar_bg: '#f1f3f6',
+                    enable_publishing: false,
+                    withdateranges: true,
+                    hide_side_toolbar: false,
+                    allow_symbol_change: true,
+                    save_image: true,
+                    details: false,
+                    hotlist: false,
+                    studies: [
+                        {
+                            id: 'VWAP@tv-basicstudies',
+                        },
+                        {
+                            id: 'MAExp@tv-basicstudies',
+                            inputs: {
+                                length: 200
+                            },
+                            styles: {}
+                        }
+                    ],
+                },
+                showOrderBookModal: false,
+                currentTicker: '',
+                showShareModal: false,
+                selectedTickers: [],
+                tickerSearch: '',
+                shareAssetFilter: 'USDT',
+                tonPrice: null,
+                tonUpdateInterval: null,
+                showCalculator: false,
+                calcSettings: {
+                    investment: null,
+                    initialPrice: null,
+                    projectedPrice: null,
+                    serviceFee: null,
+                    taxRate: null
+                },
+                coins: null,
+                orderBookSearchQuery: '',
+                showOrderBookDropdown: false,
+                filteredOrderBookCoins: [],
+                showPortfolio: false,
+                portfolioForm: {
+                    searchQuery: '',
+                    selectedCoin: null,
+                    amount: '',
+                    buyPrice: ''
+                },
+                portfolioPositions: [],
+                totalInvestment: 0,
+                currentValue: 0,
+                totalProfit: 0,
+                totalProfitPercent: 0,
+                lastUpdate: Date.now(),
+                
+                showChartModal: false,
+                currentTimeframe: '30',
+                chartModalInstance: null,
+                showChartScreen: false,
+                fullscreenChartInstance: null,
+                showNewsScreen: false,
+                newsItems: [],
+                newsPage: 1,
+                newsLoading: false,
+                
+                showMempoolModal: false,
+                mempoolLoading: false,
+                mempoolData: {
+                    difficultyAdjustment: null,
+                    prices: null,
+                    blocks: [],
+                    miningPools: []
+                },
+                miningPoolsPeriod: '1w',
+                btcAddressInput: '',
+                addressData: null,
+                addressLoading: false,
+                addressError: null,
+                txIdInput: '',
+                txLoading: false,
+                txData: null,
+                txError: null,
+
+                hashrateData: {
+                    currentHashrate: 'N/A',
+                    averageHashrate: 'N/A',
+                    currentDifficulty: 'N/A'
+                },
+                mempoolLoading: false
+            }
+        },
+        methods: {
+            toggleSettings() {
+                this.showSettings = !this.showSettings;
+            },
+            toggleLatestTrades() {
+                this.showLatestTrades = !this.showLatestTrades;
+            },
+            sockInit() {
+                this.sock = new WebSocket('wss://stream.binance.com:9443/ws');
+                this.sock.onopen = this.sockOpen;
+                this.sock.onmessage = this.sockMessage;
+                this.sock.onclose = this.sockClose;
+                this.sock.onerror = this.sockError;
+                this.updateTonPrice();
+                this.tonUpdateInterval = setInterval(() => this.updateTonPrice(), 30000);
+            },
+            sockOpen() {
+                this.status = 1;
+                this.sock.send(JSON.stringify({
+                    "method": "SUBSCRIBE",
+                    "params": [
+                        "!ticker@arr"
+                    ],
+                    "id": 1
+                }));
+            },
+            sockMessage(e) {
+                let data = JSON.parse(e.data);
+                if (Array.isArray(data)) {
+                    
+                    console.log(`Received ${data.length} ticker updates`);
+                    
+                    let updatedCount = 0;
+                    
+                    data.forEach(ticker => {
+                        
+                        if (ticker.s === 'BTCUSDT' || ticker.s === 'ETHUSDT') {
+                            console.log(`${ticker.s} price: ${ticker.c}`);
+                        }
+                        
+                        if (ticker.s.endsWith('BTC')) {
+                            this.tickers[ticker.s] = {
+                                symbol: ticker.s,
+                                pair: ticker.s.replace('BTC', '') + '/BTC',
+                                token: ticker.s.replace('BTC', ''),
+                                asset: 'BTC',
+                                close: parseFloat(ticker.c).toFixed(8),
+                                open: parseFloat(ticker.o).toFixed(8),
+                                high: parseFloat(ticker.h).toFixed(8),
+                                low: parseFloat(ticker.l).toFixed(8),
+                                volume: parseFloat(ticker.v).toFixed(8),
+                                quoteVolume: parseFloat(ticker.q).toFixed(8),
+                                tokenVolume: parseFloat(ticker.v).toFixed(2),
+                                assetVolume: parseFloat(ticker.q).toFixed(2),
+                                percent: parseFloat(ticker.P),
+                                arrow: parseFloat(ticker.P) >= 0 ? '↑' : '↓',
+                                style: parseFloat(ticker.P) >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'
+                            };
+                            updatedCount++;
+                        }
+                        if (ticker.s.endsWith('USDT')) {
+                            this.tickers[ticker.s] = {
+                                symbol: ticker.s,
+                                pair: ticker.s.replace('USDT', '') + '/USDT',
+                                token: ticker.s.replace('USDT', ''),
+                                asset: 'USDT',
+                                close: parseFloat(ticker.c).toFixed(8),
+                                open: parseFloat(ticker.o).toFixed(8),
+                                high: parseFloat(ticker.h).toFixed(8),
+                                low: parseFloat(ticker.l).toFixed(8),
+                                volume: parseFloat(ticker.v).toFixed(8),
+                                quoteVolume: parseFloat(ticker.q).toFixed(8),
+                                tokenVolume: parseFloat(ticker.v).toFixed(2),
+                                assetVolume: parseFloat(ticker.q).toFixed(0), 
+                                percent: parseFloat(ticker.P),
+                                arrow: parseFloat(ticker.P) >= 0 ? '↑' : '↓',
+                                style: parseFloat(ticker.P) >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'
+                            };
+                            updatedCount++;
+                        }
+                    });
+                    
+                    console.log(`Updated ${updatedCount} tickers`);
+
+                    if (Object.keys(this.tickers).length > 0) {
+                        if (this.portfolioPositions.length === 0) {
+                            console.log('Tickers received, trying to load portfolio');
+                            this.loadState();
+                        }
+                        
+                        if (this.portfolioPositions.length > 0) {
+                            this.updatePortfolioTotals();
+                        }
+                    }
+
+                    this.status = 2;
+                }
+            },
+            sockClose() {
+                this.status = 0;
+                console.log('socket closed');
+            },
+            sockError(e) {
+                this.status = 0;
+                console.log('socket error:', e);
+            },
+            changeTicker(symbol) {
+                this.ticker = symbol;
+                this.currentTicker = symbol;
+                this.options.symbol = 'BINANCE:' + symbol;
+                if (window.tvWidget) {
+                    window.tvWidget.setSymbol('BINANCE:' + symbol);
+                }
+                
+                if (this.showChartScreen && this.fullscreenChartInstance) {
+
+                    try {
+                        this.fullscreenChartInstance.setSymbol('BINANCE:' + symbol, () => {
+                            console.log('Chart symbol updated to', symbol);
+                        });
+                    } catch (e) {
+                        console.error('Error updating chart symbol:', e);
+
+                        this.$nextTick(() => {
+                            this.initFullscreenChart();
+                        });
+                    }
+                }
+            },
+            setFavorite(symbol) {
+                if (this.favorites.includes(symbol)) {
+                    this.favorites = this.favorites.filter(item => item !== symbol);
+                } else {
+                    this.favorites.push(symbol);
+                }
+                localStorage.setItem('favorites', JSON.stringify(this.favorites));
+            },
+            filterAsset(asset) {
+                this.asset = asset; 
+                this.status = 1; 
+                
+            },
+            sortBy(field, order) {
+                this.sort = field;
+                this.order = order;
+            },
+            parseNumber(number, asset) {
+                if (asset === 'USDT') {
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(number);
+                }
+                return parseFloat(number).toFixed(8);
+            },
+            timestampToDate(timestamp) {
+                return new Date(timestamp).toLocaleTimeString("en-GB");
+            },
+            appendScript(onload) {
+                const script = document.createElement('script');
+                script.src = 'https://s3.tradingview.com/tv.js';
+                script.async = true;
+                script.onload = onload;
+                document.head.appendChild(script);
+            },
+            initWidget() {
+                const widget = new TradingView.widget({
+                    container_id: this.container_id,
+                    width: '100%', 
+                    height: '500px', 
+                    ...this.options
+                });
+                window.tvWidget = widget;
+            },
+            async prepareOrderBook() {
+                await fetch('https://api.binance.com/api/v3/depth?symbol=' + this.ticker + '&limit=100')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Order Book Data:', data);
+                    this.asks = data.asks;
+                    this.bids = data.bids;
+
+                    for (let i = 0; i < this.asks.length; i++) {
+                        var arr = this.asks.map(x => {
+                            return Number(x[1]);
+                        });
+                        this.asks[i].push(arr.slice(0, i + 1).reduce((a, b) => a + b));
+                    }
+                    for (let i = 0; i < this.bids.length; i++) {
+                        var arr = this.bids.map(x => {
+                            return Number(x[1]);
+                        });
+                        this.bids[i].push(arr.slice(0, i + 1).reduce((a, b) => a + b));
+                    }
+                });
+
+                this.maxAsk = Math.max(...this.asks.map(x => { return x[2] }));
+                setTimeout(async () => { await this.prepareOrderBook() }, 500);
+            },
+            toggleOrderBookModal() {
+
+                if (!this.showOrderBookModal) {
+                    this.closeAllModals();
+                    
+                    this.showOrderBookModal = true;
+                    document.body.classList.add('no-scroll');
+                    
+                    if (this.showChartScreen) {
+                        setTimeout(() => {
+                            const orderBookModal = document.getElementById('orderBookModal');
+                            if (orderBookModal) orderBookModal.classList.add('modal-on-chart');
+                        }, 0);
+                    }
+                } else {
+                    this.showOrderBookModal = false;
+                    document.body.classList.remove('no-scroll');
+                }
+            },
+            closeKeyboard() {
+                this.$refs.searchInput.blur(); 
+            },
+            handleKeyPress(event) {
+                if (event.key === 'Enter') {
+                    this.closeKeyboard(); 
+                }
+            },
+            handleClick(event) {
+                
+                if (this.$refs.searchInput && !this.$refs.searchInput.contains(event.target)) {
+                    this.closeKeyboard(); 
+                }
+            },
+            toggleBodyScroll(disable) {
+                if (disable && this.showShareModal) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = 'auto';
+                }
+            },
+            openShareModal() {
+
+                this.closeAllModals();
+                
+                this.showShareModal = true;
+                document.body.style.overflow = 'hidden';
+                
+                if (this.showChartScreen) {
+                    setTimeout(() => {
+                        const shareModal = document.getElementById('shareModal');
+                        if (shareModal) shareModal.classList.add('modal-on-chart');
+                    }, 0);
+                }
+            },
+            toggleShareModal() {
+                if (this.showShareModal) {
+
+                    this.showShareModal = false;
+                    document.body.style.overflow = 'auto';
+                } else {
+
+                    this.openShareModal();
+                }
+            },
+            toggleSelectedTicker(symbol) {
+                const index = this.selectedTickers.indexOf(symbol);
+                if (index === -1) {
+                    this.selectedTickers.push(symbol);
+                    const element = event.currentTarget;
+                    element.classList.add('selected-ticker');
+                } else {
+                    this.selectedTickers.splice(index, 1);
+                    const element = event.currentTarget;
+                    element.classList.remove('selected-ticker');
+                }
+            },
+            formatTickerPrice(ticker) {
+                let price;
+                if (ticker.symbol.endsWith('USDT')) {
+                    
+                    price = parseFloat(ticker.close).toFixed(4);
+                } else {
+                    price = ticker.close;
+                }
+                
+                if (ticker.symbol === 'BTCUSDT' || ticker.symbol === 'ETHUSDT') {
+                    console.log(`Formatted price for ${ticker.symbol}: ${price} (original: ${ticker.close})`);
+                }
+                
+                return price;
+            },
+            shareMultipleTickers() {
+                if (!this.selectedTickers.length) return;
+                
+                const tickersInfo = this.selectedTickers.map(symbol => {
+                    const ticker = this.tickers[symbol];
+                    let formattedPrice;
+                    
+                    if (symbol === 'BTCUSDT' || symbol === 'ETHUSDT' || symbol === 'BNBUSDT') {
+                        formattedPrice = parseFloat(ticker.close).toFixed(2);
+                    } else if (symbol.endsWith('BTC')) {
+                        formattedPrice = ticker.close; 
+                    } else if (symbol.endsWith('USDT')) {
+                        formattedPrice = parseFloat(ticker.close).toFixed(4);
+                    }
+                    
+                    return `${ticker.pair}: ${formattedPrice}`;
+                }).join('\n');
+                
+                const telegramMessage = `Prices:\n${tickersInfo}\n@BTCPunkTradebot`;
+                const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(telegramMessage)}`;
+                
+                window.open(telegramUrl, '_blank');
+                this.selectedTickers = [];
+                this.toggleShareModal();
+            },
+            handleShareModalClick(event) {
+
+                if (this.$refs.tickerSearchInput) {
+                    this.$refs.tickerSearchInput.blur();
+                }
+            },
+            shareFilterAsset(asset) {
+                this.shareAssetFilter = asset;
+            },
+            async updateTonPrice() {
+                try {
+                    const response = await fetch('https://tonapi.io/v2/rates?tokens=ton&currencies=usd');
+                    const data = await response.json();
+                    const price = data.rates.TON.prices.USD;
+                    const diff24h = data.rates.TON.diff_24h.USD.replace('%', '');
+                    
+                    this.tickers['TONUSDT'] = {
+                        symbol: 'TONUSDT',
+                        pair: 'TON/USDT',
+                        token: 'TON',
+                        asset: 'USDT',
+                        close: price.toFixed(8),
+                        open: price.toFixed(8), 
+                        high: price.toFixed(8), 
+                        low: price.toFixed(8),  
+                        volume: '0',            
+                        quoteVolume: '0',       
+                        tokenVolume: '0',      
+                        assetVolume: '0',     
+                        percent: parseFloat(diff24h),
+                        arrow: parseFloat(diff24h) >= 0 ? '↑' : '↓',
+                        style: parseFloat(diff24h) >= 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]'
+                    };
+                } catch (error) {
+                    console.error('Error fetching TON price:', error);
+                }
+            },
+            toggleCalculator() {
+                
+                if (!this.showCalculator) {
+                    
+                    this.closeAllModals();
+                    
+                    this.showCalculator = true;
+                    document.body.style.overflow = 'hidden';
+                    
+                    if (this.showChartScreen) {
+                        setTimeout(() => {
+                            const calculatorModal = document.getElementById('calculatorModal');
+                            if (calculatorModal) calculatorModal.classList.add('modal-on-chart');
+                        }, 0);
+                    }
+                } else {
+
+                    this.showCalculator = false;
+                    document.body.style.overflow = 'auto';
+                }
+            },
+            updateCalcSettings(settings) {
+                this.calcSettings = { ...settings };
+                localStorage.setItem('calcSettings', JSON.stringify(settings));
+            },
+            filterOrderBookCoins() {
+                const query = this.orderBookSearchQuery.toLowerCase();
+                this.filteredOrderBookCoins = Object.values(this.tickers)
+                    .filter(ticker => {
+                        const symbol = ticker.symbol.toLowerCase();
+                        const pair = ticker.pair.toLowerCase();
+                        return (symbol.includes(query) || pair.includes(query)) && 
+                            ticker.symbol.endsWith('USDT');
+                    })
+                    .slice(0, 5)
+                    .sort((a, b) => {
+                        const aExact = a.symbol.toLowerCase().startsWith(query);
+                        const bExact = b.symbol.toLowerCase().startsWith(query);
+                        if (aExact && !bExact) return -1;
+                        if (!aExact && bExact) return 1;
+                        return a.pair.localeCompare(b.pair);
+                    });
+            },
+            selectOrderBookCoin(ticker) {
+                this.orderBookSearchQuery = ticker.pair;
+                this.currentTicker = ticker.symbol;
+                this.ticker = ticker.symbol;
+                this.showOrderBookDropdown = false;
+
+                this.prepareOrderBook();
+                if (window.tvWidget) {
+                    window.tvWidget.setSymbol('BINANCE:' + this.currentTicker);
+                }
+            },
+            handleOrderBookModalClick(event) {
+                if (!event.target.closest('.form-group')) {
+                    this.showOrderBookDropdown = false;
+                }
+            },
+            togglePortfolio() {
+                if (!this.showPortfolio) {
+                    
+                    this.closeAllModals();
+                    
+                    this.showPortfolio = true;
+                    document.body.style.overflow = 'hidden';
+                    
+                    if (this.showChartScreen) {
+                        setTimeout(() => {
+                            const portfolioModal = document.getElementById('portfolioModal');
+                            if (portfolioModal) portfolioModal.classList.add('modal-on-chart');
+                        }, 0);
+                    }
+                } else {
+                    this.showPortfolio = false;
+                    document.body.style.overflow = 'auto';
+                }
+            },
+            filterPortfolioCoins() {
+                const query = this.portfolioForm.searchQuery.toLowerCase();
+                this.filteredPortfolioCoins = Object.values(this.tickers)
+                    .filter(ticker => {
+                        const symbol = ticker.symbol.toLowerCase();
+                        const pair = ticker.pair.toLowerCase();
+                        return (symbol.includes(query) || pair.includes(query)) && 
+                            ticker.symbol.endsWith('USDT');
+                    })
+                    .slice(0, 5)
+                    .sort((a, b) => {
+                        const aExact = a.symbol.toLowerCase().startsWith(query);
+                        const bExact = b.symbol.toLowerCase().startsWith(query);
+                        if (aExact && !bExact) return -1;
+                        if (!aExact && bExact) return 1;
+                        return a.pair.localeCompare(b.pair);
+                    });
+            },
+            selectPortfolioCoin(ticker) {
+                this.portfolioForm.searchQuery = ticker.pair;
+                this.portfolioForm.selectedCoin = ticker;
+                this.showPortfolioDropdown = false;
+            },
+            addPortfolioPosition() {
+                if (!this.portfolioForm.selectedCoin || !this.portfolioForm.amount || !this.portfolioForm.buyPrice) {
+                    console.log('Cannot add position: missing data', this.portfolioForm);
+                    return;
+                }
+
+                const position = {
+                    symbol: this.portfolioForm.selectedCoin.symbol,
+                    pair: this.portfolioForm.selectedCoin.pair,
+                    amount: parseFloat(this.portfolioForm.amount),
+                    buyPrice: parseFloat(this.portfolioForm.buyPrice),
+                    currentPrice: 0,
+                    currentValue: 0,
+                    profit: 0,
+                    profitPercent: 0
+                };
+
+                console.log('Adding position to portfolio:', position);
+                this.portfolioPositions.push(position);
+                
+                this.saveState();
+
+                this.portfolioForm.searchQuery = '';
+                this.portfolioForm.selectedCoin = null;
+                this.portfolioForm.amount = '';
+                this.portfolioForm.buyPrice = '';
+
+                this.updatePortfolioTotals();
+            },
+            removePosition(index) {
+                this.portfolioPositions.splice(index, 1);
+                this.saveState(); 
+                this.updatePortfolioTotals();
+            },
+            saveState() {
+                try {
+
+                    if (!Array.isArray(this.portfolioPositions)) {
+                        console.error('portfolioPositions is not an array:', this.portfolioPositions);
+                        return;
+                    }
+                    
+                    const portfolioState = this.portfolioPositions.map(pos => ({
+                        symbol: pos.symbol,
+                        pair: pos.pair,
+                        amount: parseFloat(pos.amount),  
+                        buyPrice: parseFloat(pos.buyPrice)
+                    }));
+                    
+                    localStorage.setItem('portfolioState', JSON.stringify(portfolioState));
+                    console.log('Portfolio state saved with', portfolioState.length, 'positions:', portfolioState);
+                } catch (error) {
+                    console.error('Error saving portfolio state:', error);
+                }
+            },
+            loadState() {
+                try {
+                    const savedState = localStorage.getItem('portfolioState');
+                    if (savedState) {
+                        try {
+                            const positions = JSON.parse(savedState);
+                            
+                            if (!Array.isArray(positions)) {
+                                console.error('Saved portfolio data is not an array:', positions);
+                                return;
+                            }
+                            
+                            if (positions.length > 0) {
+                                this.portfolioPositions = positions.map(pos => ({
+                                    symbol: pos.symbol,
+                                    pair: pos.pair,
+                                    amount: parseFloat(pos.amount),
+                                    buyPrice: parseFloat(pos.buyPrice),
+                                    currentPrice: 0,
+                                    currentValue: 0,
+                                    profit: 0,
+                                    profitPercent: 0
+                                }));
+                                
+                                console.log('Portfolio state loaded with', this.portfolioPositions.length, 'positions:', this.portfolioPositions);
+                                
+                                if (Object.keys(this.tickers).length > 0) {
+                                    console.log('Tickers available, updating portfolio calculations');
+                                    this.updatePortfolioTotals();
+                                } else {
+                                    console.log('Tickers not yet available, will update when received');
+                                }
+                            } else {
+                                console.log('Saved portfolio state is empty array');
+                                this.portfolioPositions = [];
+                            }
+                        } catch (jsonError) {
+                            console.error('Error parsing saved portfolio state:', jsonError);
+                            this.portfolioPositions = [];
+                        }
+                    } else {
+                        console.log('No saved portfolio state found in localStorage');
+                        this.portfolioPositions = [];
+                    }
+                } catch (error) {
+                    console.error('Error loading portfolio state:', error);
+                    this.portfolioPositions = [];
+                }
+            },
+            updatePortfolioTotals() {
+                if (!this.portfolioPositions.length) {
+                    this.totalInvestment = 0;
+                    this.currentValue = 0;
+                    this.totalProfit = 0;
+                    this.totalProfitPercent = 0;
+                    return;
+                }
+
+                let totalInv = 0;
+                let currentVal = 0;
+
+                this.portfolioPositions = this.portfolioPositions.map(pos => {
+                    const ticker = this.tickers[pos.symbol];
+                    if (ticker) {
+                        const currentPrice = parseFloat(ticker.close);
+                        const currentValue = pos.amount * currentPrice;
+                        const investment = pos.amount * pos.buyPrice;
+                        const profit = currentValue - investment;
+                        const profitPercent = investment > 0 ? (profit / investment) * 100 : 0;
+
+                        totalInv += investment;
+                        currentVal += currentValue;
+
+                        return {
+                            ...pos,
+                            currentPrice,
+                            currentValue,
+                            investment,
+                            profit,
+                            profitPercent
+                        };
+                    }
+                    return pos;
+                });
+
+                this.totalInvestment = totalInv;
+                this.currentValue = currentVal;
+                this.totalProfit = this.currentValue - this.totalInvestment;
+                this.totalProfitPercent = this.totalInvestment > 0 ? (this.totalProfit / this.totalInvestment) * 100 : 0;
+            },
+            savePortfolio() {
+                console.log('Saving portfolio:', this.portfolio);
+                localStorage.setItem('cryptoPortfolio', JSON.stringify(this.portfolio));
+            },
+            loadPortfolio() {
+                const portfolioStr = localStorage.getItem('cryptoPortfolio');
+                if (portfolioStr) {
+                    this.portfolio = JSON.parse(portfolioStr);
+                    console.log('Loaded portfolio:', this.portfolio);
+                } else {
+                    console.log('No portfolio found in localStorage.');
+                }
+            },
+            onSockData(e) {
+                let data = JSON.parse(e.data) || [];
+                let tickersUpdated = false;
+
+                for (let item of data) {
+                    let c = this.getCoinData(item);
+                    this.tickers[c.symbol] = c;
+                    tickersUpdated = true;
+                }
+
+                if (tickersUpdated && this.portfolioPositions.length > 0) {
+                    this.updatePortfolioTotals();
+                }
+
+                this.status = 2;
+            },
+            
+            toggleChartModal() {
+                this.showChartModal = !this.showChartModal;
+                if (this.showChartModal) {
+
+                    this.$nextTick(() => {
+                        this.initChartModal();
+                    });
+                }
+            },
+            handleChartModalClick(event) {
+
+                if (event.target.id === 'chartModal') {
+                    this.toggleChartModal();
+                }
+            },
+            initChartModal() {
+
+                const chartContainerId = 'chart_container_modal';
+                const container = document.getElementById(chartContainerId);
+                
+                if (container && window.TradingView) {
+
+                    if (this.chartModalInstance) {
+                        this.chartModalInstance.remove();
+                        this.chartModalInstance = null;
+                    }
+                    
+                    this.chartModalInstance = new window.TradingView.widget({
+                        container_id: chartContainerId,
+                        autosize: true,
+                        symbol: 'BINANCE:' + this.ticker,
+                        interval: this.currentTimeframe,
+                        timezone: 'Etc/UTC',
+                        theme: 'dark',
+                        style: '1',
+                        locale: 'en',
+                        toolbar_bg: '#f1f3f6',
+                        enable_publishing: false,
+                        allow_symbol_change: true,
+                        save_image: false,
+                        studies: ['RSI@tv-basicstudies'],
+                        show_popup_button: true,
+                        popup_width: '1000',
+                        popup_height: '650'
+                    });
+                } else {
+                    console.error('TradingView widget not available or container not found');
+                }
+            },
+            setTimeframe(timeframe) {
+                this.currentTimeframe = timeframe;
+                if (this.chartModalInstance) {
+
+                    this.chartModalInstance.setInterval(timeframe);
+                }
+            },
+            setChartTimeframe(timeframe) {
+                this.currentTimeframe = timeframe;
+                if (this.chartModalInstance) {
+
+                    this.chartModalInstance.setInterval(timeframe);
+                }
+            },
+
+            toggleChartScreen() {
+                this.closeAllModals();
+                
+                this.showChartScreen = !this.showChartScreen;
+                if (this.showChartScreen) {
+                    this.$nextTick(() => {
+                        this.initFullscreenChart();
+                    });
+                } else {
+                    document.body.style.overflow = 'auto';
+                }
+            },
+            
+            updateModalZIndexes(isChartOpen) {
+                setTimeout(() => {
+                    if (this.showOrderBookModal) {
+                        const orderBookModal = document.getElementById('orderBookModal');
+                        if (orderBookModal) {
+                            if (isChartOpen) {
+                                orderBookModal.classList.add('modal-on-chart');
+                            } else {
+                                orderBookModal.classList.remove('modal-on-chart');
+                            }
+                        }
+                    }
+                    
+                    if (this.showShareModal) {
+                        const shareModal = document.getElementById('shareModal');
+                        if (shareModal) {
+                            if (isChartOpen) {
+                                shareModal.classList.add('modal-on-chart');
+                            } else {
+                                shareModal.classList.remove('modal-on-chart');
+                            }
+                        }
+                    }
+                    
+                    if (this.showCalculator) {
+                        const calculatorModal = document.getElementById('calculatorModal');
+                        if (calculatorModal) {
+                            if (isChartOpen) {
+                                calculatorModal.classList.add('modal-on-chart');
+                            } else {
+                                calculatorModal.classList.remove('modal-on-chart');
+                            }
+                        }
+                    }
+                    
+                    if (this.showPortfolio) {
+                        const portfolioModal = document.getElementById('portfolioModal');
+                        if (portfolioModal) {
+                            if (isChartOpen) {
+                                portfolioModal.classList.add('modal-on-chart');
+                            } else {
+                                portfolioModal.classList.remove('modal-on-chart');
+                            }
+                        }
+                    }
+                }, 0);
+            },
+            
+            initFullscreenChart() {
+                const chartContainerId = 'chart_container_fullscreen';
+                const container = document.getElementById(chartContainerId);
+                
+                if (container && window.TradingView) {
+
+                    new TradingView.widget({
+                        container_id: chartContainerId,
+                        width: '100%', 
+                        height: '100%', 
+                        symbol: this.options.symbol,
+                        interval: this.options.interval,
+                        timezone: this.options.timezone,
+                        theme: this.options.theme,
+                        style: this.options.style,
+                        locale: this.options.locale,
+                        toolbar_bg: this.options.toolbar_bg,
+                        enable_publishing: this.options.enable_publishing,
+                        withdateranges: true,
+                        hide_side_toolbar: this.options.hide_side_toolbar,
+                        allow_symbol_change: true,
+                        save_image: true,
+                        details: this.options.details,
+                        hotlist: this.options.hotlist,
+                        studies: this.options.studies
+                    });
+                }
+            },
+            
+            setChartTimeframe(timeframe) {
+                this.currentTimeframe = timeframe;
+                if (this.fullscreenChartInstance && this.fullscreenChartInstance.iframe && this.fullscreenChartInstance.iframe.contentWindow) {
+                    this.fullscreenChartInstance.setInterval(timeframe);
+                }
+            },
+
+            closeAllModals() {
+                if (this.showMempoolModal) {
+                    this.closeMempoolModal();
+                }
+                
+                this.showChartModal = false;
+                this.showOrderBookModal = false;
+                this.showShareModal = false;
+                this.showCalculator = false;
+                this.showPortfolio = false;
+                this.showNewsScreen = false;
+                document.body.style.overflow = 'auto';
+            },
+            formatDisplayPrice(ticker) {
+                let price;
+                if (ticker.symbol.endsWith('USDT')) {
+                    price = parseFloat(ticker.close).toFixed(4);
+                } else {
+                    
+                    price = ticker.close;
+                }
+                
+                if (ticker.symbol === 'BTCUSDT' || ticker.symbol === 'ETHUSDT') {
+                    console.log(`Formatted display price for ${ticker.symbol}: ${price} (original: ${ticker.close})`);
+                }
+                
+                return price;
+            },
+            toggleNewsScreen() {
+                
+                if (!this.showNewsScreen) {
+                    
+                    this.closeAllModals();
+                    
+                    this.showNewsScreen = true;
+                    
+                    if (this.newsItems.length === 0) {
+                        this.newsPage = 1;
+                        this.loadNews();
+                    }
+                } else {
+                    this.showNewsScreen = false;
+                }
+            },
+            
+            async loadNews() {
+                try {
+                    if (this.newsLoading) return;
+                    this.newsLoading = true;
+                    
+                    console.log(`Loading news for page ${this.newsPage}`);
+                    
+                    let apiUrl = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
+                    
+                    if (this.newsPage === 1) {
+                        apiUrl += '&sortOrder=latest';
+                    } 
+                    else if (this.newsItems.length > 0) {
+                        
+                        const oldestItem = [...this.newsItems].sort((a, b) => a.published_on - b.published_on)[0];
+                        
+                        apiUrl += `&sortOrder=latest&toTs=${oldestItem.published_on - 1}`;
+                        console.log(`Getting news older than ${new Date(oldestItem.published_on * 1000).toLocaleString()}`);
+                    }
+                    
+                    console.log(`API URL: ${apiUrl}`);
+                    
+                    const response = await fetch(apiUrl);
+                    const data = await response.json();
+                    
+                    if (data.Data && Array.isArray(data.Data) && data.Data.length > 0) {
+                        console.log(`Received ${data.Data.length} news items`);
+                        
+                        if (data.Data.length > 0) {
+                            const firstDate = new Date(data.Data[0].published_on * 1000);
+                            const lastDate = new Date(data.Data[data.Data.length-1].published_on * 1000);
+                            console.log(`News date range: ${firstDate.toLocaleString()} - ${lastDate.toLocaleString()}`);
+                        }
+                        
+                        if (this.newsPage === 1) {
+                            this.newsItems = data.Data;
+                        } 
+                        
+                        else {
+                            const existingIds = new Set(this.newsItems.map(item => item.id));
+                            
+                            
+                            const newItems = data.Data.filter(item => !existingIds.has(item.id));
+                            console.log(`Found ${newItems.length} new unique articles`);
+                            
+                            if (newItems.length > 0) {
+                                this.newsItems = [...this.newsItems, ...newItems];
+                            } else {
+                                console.log("No new articles found, may need to look further back");
+                            }
+                        }
+                    } else {
+                        console.log("No news found or end of available news reached");
+                    }
+                } catch (error) {
+                    console.error('Error loading news:', error);
+                } finally {
+                    this.newsLoading = false;
+                }
+            },
+            
+            loadMoreNews() {
+                this.newsPage++;
+                this.loadNews();
+            },
+            
+            formatNewsDate(timestamp) {
+                if (!timestamp) return "No date";
+                
+                try {
+                    let date;
+                    
+                    if (!isNaN(timestamp) && !isNaN(parseFloat(timestamp))) {
+                        const ts = Number(timestamp);
+                        date = new Date(ts < 10000000000 ? ts * 1000 : ts);
+                    } else {
+                        date = new Date(timestamp);
+                    }
+                    
+                    if (isNaN(date.getTime())) {
+                        return "No date";
+                    }
+                    
+                    return date.getDate() + '/' + (date.getMonth() + 1);
+                    
+                } catch (error) {
+                    return "No date";
+                }
+            },
+            
+            toggleMempoolModal() {
+                
+                if (!this.showMempoolModal) {
+                    
+                    this.closeAllModals();
+                    
+                    this.showMempoolModal = true;
+                    document.body.style.overflow = 'hidden';
+                    
+                    this.fetchMempoolData();
+                    
+                    if (this.showChartScreen) {
+                        setTimeout(() => {
+                            const mempoolModal = document.getElementById('mempoolModal');
+                            if (mempoolModal) mempoolModal.classList.add('modal-on-chart');
+                        }, 0);
+                    }
+                    
+                    const navButtons = document.querySelectorAll('.nav-button');
+                    navButtons.forEach(button => {
+                        button.addEventListener('click', this.closeMempoolOnNavClick);
+                    });
+                } else {
+                    
+                    this.closeMempoolModal();
+                }
+            },
+            
+            closeMempoolModal() {
+                this.showMempoolModal = false;
+                document.body.style.overflow = 'auto';
+                
+                const navButtons = document.querySelectorAll('.nav-button');
+                navButtons.forEach(button => {
+                    button.removeEventListener('click', this.closeMempoolOnNavClick);
+                });
+            },
+            
+            closeMempoolOnNavClick() {
+                if (this.showMempoolModal) {
+                    this.closeMempoolModal();
+                }
+            },
+            
+            async fetchMempoolData() {
+                this.mempoolLoading = true;
+                
+                try {
+                    // Fetch difficulty adjustment
+                    const difficultyResponse = await fetch('https://mempool.space/api/v1/difficulty-adjustment');
+                    if (!difficultyResponse.ok) {
+                        throw new Error(`HTTP error! status: ${difficultyResponse.status}`);
+                    }
+                    const difficultyData = await difficultyResponse.json();
+                    this.mempoolData.difficultyAdjustment = difficultyData;
+                    console.log('Difficulty data loaded:', difficultyData);
+                    
+                    // Fetch prices
+                    const pricesResponse = await fetch('https://mempool.space/api/v1/prices');
+                    if (!pricesResponse.ok) {
+                        throw new Error(`HTTP error! status: ${pricesResponse.status}`);
+                    }
+                    const pricesData = await pricesResponse.json();
+                    this.mempoolData.prices = pricesData;
+                    console.log('Prices data loaded:', pricesData);
+                    
+                    // Fetch blocks
+                    const blocksResponse = await fetch('https://mempool.space/api/v1/blocks');
+                    if (!blocksResponse.ok) {
+                        throw new Error(`HTTP error! status: ${blocksResponse.status}`);
+                    }
+                    const blocksData = await blocksResponse.json();
+                    this.mempoolData.blocks = blocksData.slice(0, 5); // Get only the 5 latest blocks
+                    console.log('Blocks data loaded:', blocksData.slice(0, 5));
+                    
+                    // Fetch mining pools
+                    await this.fetchMiningPools();
+
+                    const hashrateResponse = await fetch('https://mempool.space/api/v1/mining/hashrate/1m');
+                    if (!hashrateResponse.ok) {
+                        throw new Error(`HTTP error! status: ${hashrateResponse.status}`);
+                    }
+                    const hashrateData = await hashrateResponse.json();
+                    console.log('Hashrate data loaded:', hashrateData);
+
+                    // Process hashrate data
+                    const currentHashrateEH = (hashrateData.currentHashrate / 1e18).toFixed(2);
+                    const avgHashrateEH = (hashrateData.averageHashrate / 1e18).toFixed(2);
+                    const difficultyT = (hashrateData.currentDifficulty / 1e12).toFixed(2);
+
+                    this.hashrateData = {
+                        currentHashrate: `${currentHashrateEH} EH/s`,
+                        averageHashrate: `${avgHashrateEH} EH/s`,
+                        currentDifficulty: `${difficultyT} T`
+                    };
+                } catch (error) {
+                    console.error('Error fetching mempool data:', error);
+                } finally {
+                    this.mempoolLoading = false;
+                }
+            },
+            
+            async fetchMiningPools() {
+                try {
+                    const poolsResponse = await fetch(`https://mempool.space/api/v1/mining/pools/${this.miningPoolsPeriod}`);
+                    if (!poolsResponse.ok) {
+                        throw new Error(`HTTP error! status: ${poolsResponse.status}`);
+                    }
+                    const poolsData = await poolsResponse.json();
+                    
+                    if (Array.isArray(poolsData)) {
+                        this.mempoolData.miningPools = poolsData
+                            .sort((a, b) => b.blockCount - a.blockCount) // Sort by block count descending
+                            .map(pool => ({
+                                ...pool,
+                                share: pool.blockCount / poolsData.reduce((sum, p) => sum + p.blockCount, 0)
+                            }));
+                        console.log('Mining pools data loaded:', this.mempoolData.miningPools.slice(0, 3)); 
+                    } else {
+                        console.error('Mining pools data is not an array:', poolsData);
+                        this.mempoolData.miningPools = [];
+                    }
+                } catch (error) {
+                    console.error('Error fetching mining pools:', error);
+                    this.mempoolData.miningPools = [];
+                }
+            },
+
+            changeMiningPoolsPeriod(period) {
+                this.miningPoolsPeriod = period;
+                this.fetchMiningPools();
+            },
+
+            formatHashrate(hashrate) {
+                if (!hashrate) return 'N/A';
+                
+                const units = ['H/s', 'KH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s', 'EH/s'];
+                let unitIndex = 0;
+                
+                while (hashrate >= 1000 && unitIndex < units.length - 1) {
+                    hashrate /= 1000;
+                    unitIndex++;
+                }
+                
+                return `${hashrate.toFixed(2)} ${units[unitIndex]}`;
+            },
+
+            getPoolColor(index) {
+                // Generate colors for mining pools
+                const colors = [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#8AC054', '#4D5360', '#E7E9ED', '#F7464A'
+                ];
+                return colors[index % colors.length];
+            },
+            
+            async lookupBtcAddress() {
+                if (!this.btcAddressInput || this.btcAddressInput.trim() === '') {
+                    this.addressError = 'Please enter a Bitcoin address';
+                    return;
+                }
+                
+                this.addressLoading = true;
+                this.addressError = null;
+                this.addressData = null;
+                
+                try {
+                    // Fetch address data
+                    const addressResponse = await fetch(`https://mempool.space/api/address/${this.btcAddressInput.trim()}`);
+                    console.log('Address lookup response status:', addressResponse.status);
+                    
+                    if (!addressResponse.ok) {
+                        throw new Error(`HTTP error! status: ${addressResponse.status}`);
+                    }
+                    
+                    const addressData = await addressResponse.json();
+                    console.log('Address data loaded:', addressData);
+                    this.addressData = addressData;
+                } catch (error) {
+                    console.error('Error looking up address:', error);
+                    this.addressError = 'Error looking up address: ' + error.message;
+                } finally {
+                    this.addressLoading = false;
+                }
+            },
+            
+            formatTimeAgo(timestamp) {
+                if (!timestamp) return 'N/A';
+                
+                const now = Date.now();
+                const date = new Date(timestamp * 1000);
+                const diff = Math.floor((now - date) / 1000);
+                
+                if (diff < 60) return `${diff} seconds ago`;
+                if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+                return `${Math.floor(diff / 86400)} days ago`;
+            },
+            
+            formatBytes(bytes) {
+                if (!bytes) return 'N/A';
+                
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+            },
+            
+            formatBtc(satoshis) {
+                if (satoshis === undefined || satoshis === null) return '0';
+                return (satoshis / 100000000).toFixed(8);
+            },
+            
+            formatPercentage(value) {
+                if (value === undefined || value === null) return 'N/A';
+                return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+            },
+            
+            getDifficultyClass(value) {
+                if (value === undefined || value === null) return '';
+                return value > 0 ? 'text-[--color-primary-green]' : 'text-[--color-primary--500]';
+            },
+            async lookupBtcTransaction() {
+                if (!this.txIdInput || this.txIdInput.trim() === '') {
+                    this.txError = 'Please enter a Transaction ID';
+                    return;
+                }
+                
+                this.txLoading = true;
+                this.txError = null;
+                this.txData = null;
+                
+                try {
+                    // Fetch transaction data
+                    const txResponse = await fetch(`https://mempool.space/api/tx/${this.txIdInput.trim()}`);
+                    console.log('Transaction lookup response status:', txResponse.status);
+                    
+                    if (!txResponse.ok) {
+                        throw new Error(`HTTP error! status: ${txResponse.status}`);
+                    }
+                    
+                    const txData = await txResponse.json();
+                    console.log('Transaction data loaded:', txData);
+                    this.txData = txData;
+                } catch (error) {
+                    console.error('Error looking up transaction:', error);
+                    this.txError = 'Error looking up transaction: ' + error.message;
+                } finally {
+                    this.txLoading = false;
+                }
+            },
+        },
+        mounted() {
+            this.sockInit();
+            this.appendScript(this.initWidget);
+            this.prepareOrderBook();
+            this.initWidget(); 
+            this.favorites = JSON.parse(localStorage.getItem('favorites')) || ['BTCUSDT']; 
+            
+            this.loadState();
+            
+            setTimeout(() => {
+                if (this.portfolioPositions.length === 0) {
+                    console.log('Trying to load portfolio state again after delay');
+                    this.loadState();
+                }
+            }, 2000);
+
+            setInterval(() => {
+                if (this.portfolioPositions.length > 0 && Object.keys(this.tickers).length > 0) {
+                    this.updatePortfolioTotals();
+                }
+            }, 1000);
+
+            window.addEventListener('click', this.handleClick);
+
+            const savedSettings = localStorage.getItem('calcSettings');
+            if (savedSettings) {
+                this.calcSettings = JSON.parse(savedSettings);
+            }
+            
+            axios.get('https://api.coinranking.com/v1/public/coins?base=USD&timePeriod=24h').then(response => {
+                this.coins = response.data.data.coins;
+            });
+        },
+        beforeUnmount() {
+            this.sockClose();
+            window.removeEventListener('click', this.handleClick);
+            if (this.tonUpdateInterval) {
+                clearInterval(this.tonUpdateInterval);
+            }
+        },
+        computed: {
+            statusMsg() {
+                let msg = '';
+                if (this.status == 0) {
+                    msg = 'Connecting...';
+                }
+                if (this.status == 1) {
+                    msg = 'Loading...';
+                }
+                if (this.status == 2) {
+                    msg = 'Done';
+                }
+                return msg;
+            },
+            filterTickers() {
+                let tickers = Object.values(this.tickers);
+        
+                
+                if (this.asset === 'FAV') {
+                    tickers = tickers.filter(ticker => this.favorites.includes(ticker.symbol));
+                } else {
+                    
+                    tickers = tickers.filter(ticker => ticker.symbol.includes(this.asset));
+                }
+        
+                
+                if (this.inputSearch) {
+                    tickers = tickers.filter(ticker => 
+                        ticker.token.toLowerCase().includes(this.inputSearch.toLowerCase())
+                    );
+                }
+        
+                return tickers.sort((a, b) => {
+                    if (this.order === 'desc') {
+                        return b[this.sort] - a[this.sort];
+                    }
+                    return a[this.sort] - b[this.sort];
+                });
+            },
+            latestTrades() {
+                return this.showLatestTrades ? this.trades : [];
+            },
+            filteredShareTickers() {
+                let tickers = Object.values(this.tickers);
+                
+                if (this.shareAssetFilter === 'FAV') {
+                    tickers = tickers.filter(ticker => this.favorites.includes(ticker.symbol));
+                } else {
+                    tickers = tickers.filter(ticker => ticker.symbol.endsWith(this.shareAssetFilter));
+                }
+                
+                if (this.tickerSearch) {
+                    tickers = tickers.filter(ticker => 
+                        ticker.pair.toLowerCase().includes(this.tickerSearch.toLowerCase())
+                    );
+                }
+                
+                return tickers;
+            }
+        }
+    }).mount('#app')
+</script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;200;300;400;700&display=swap');
+
+    :root {
+        --color-primary-black: #13151a;
+        --color-bg--300: rgb(22, 28, 36);
+        --color-bg--500: rgb(27, 38, 59);
+        --color-primary--500: rgb(239, 68, 68);
+        --color-primary-green: #10b981;
+        --color-primary-silver: #a1a1aa;
+        --color-primary-blue: #3c82f6;
+        --color-primary-purple: #800080;
+        --color-primary-yellow: #eab308;
+        --ui-glow-text: 0 0 0.125em currentColor;
+    }
+
+    body {
+        --color-bg--300: #1e181ef0; 
+        --color-bg--500: #191a1e; 
+        --color-primary--500: #e8615a; 
+        --color-primary--600: #7A0B7A; 
+        --color-primary-black: #0e0e18; 
+        --color-primary-red: #710000; 
+        --color-primary-yellow: #FDF500;
+        --color-primary-green: #1AC5B0; 
+        --color-primary-blue: #37EBF3; 
+        --color-primary-purple: #7A0B7A;
+        --color-primary-pink1: #E455AE; 
+        --color-primary-pink2: #CB1DCD; 
+        --color-primary-silver: #D1C5C0; 
+        --color-secondary-blue: #37EBF360; 
+    
+        margin: 0; 
+        min-height: 100vh; 
+        background-color: var(--color-bg--500);
+        color: var(--color-primary-silver); 
+        font-family: 'Orbitron', sans-serif; 
+    }
+
+    .text-glow {
+        text-shadow: var(--ui-glow-text);
+    }
+
+    .delimiter {
+        height: 1px;
+        background: var(--color-primary-purple); 
+    }
+
+    .delimiter2 {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--color-primary--600) 50%, transparent);
+    }
+
+    .status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .red {
+        background-color: var(--color-primary--500);
+        box-shadow: 0 0 10px var(--color-primary--500);
+    }
+
+    .green {
+        background-color: var(--color-primary-green);
+        box-shadow: 0 0 10px var(--color-primary-green);
+    }
+
+    .silver {
+        color: var(--color-primary-silver);
+    }
+
+    .cb, .cb2 {
+        position: relative;
+        background-color: var(--color-bg--300);
+        padding-right: 0.5rem;
+        border: 2px solid var(--color-primary-purple); 
+        box-shadow: 0 0 10px 4px rgba(128, 0, 128, 0.9); 
+    }
+
+    .cb::before, .cb2::before {
+        display: none;
+    }
+
+    .cb-reverse {
+
+    }
+
+    .cb_tab {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        height: 50px; 
+        min-width: 250px;
+        text-transform: uppercase;
+        letter-spacing: 0.035rem;
+        text-shadow: var(--ui-glow-text);
+        color: var(--color-primary--500);
+        background-color: var(--color-primary--600);
+        cursor: pointer;
+        border: 0;
+        outline: none;
+    }
+
+    .cb_tab div {
+        position: absolute;
+        padding-top: 5px;
+        top: 0.1rem;
+        left: 0.1rem;
+        right: 0.1rem;
+        bottom: 0.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--color-bg--300);
+    }
+
+    .cb_tab:hover,
+    .cb_tab.active {
+        color: var(--color-primary-blue);
+    }
+
+    .cb {
+        height: 100%; 
+        width: 100%;  
+    }
+
+    .overflow-y-scroll::-webkit-scrollbar {
+        background: transparent;
+        width: 5px;
+    }
+
+    .overflow-y-scroll::-webkit-scrollbar-thumb {
+        background-color: var(--color-primary--500);
+    }
+
+    .v-enter-active,
+    .v-leave-active {
+        opacity: 0;  
+        transition: opacity 0.5s ease;
+    }
+    
+    .v-enter-from,
+    .v-leave-to {
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    }
+
+    .dotdotdot {
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .tickers .header,
+    .trades .header,
+    .orders .header {
+        color: var(--color-primary-blue);
+    }
+
+    .orders .header > div,
+    .orders .body > div {
+        flex: 1; 
+    }
+
+    .no-scroll {
+        overflow: hidden; 
+        height: 100%; 
+    }
+
+    .chart-screen-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--color-primary-black);
+        z-index: 100;
+        overflow: hidden;
+    }
+    
+    .chart-screen-content {
+        height: 100%;
+        width: 100%;
+        padding: 1rem;
+        padding-bottom: 100px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .chart-screen-content .cb {
+        background-color: var(--color-bg--300);
+        border: 2px solid var(--color-primary-purple);
+        box-shadow: 0 0 10px 4px rgba(128, 0, 128, 0.9);
+        height: calc(100vh - 250px);
+    }
+    
+    body.modal-open {
+        overflow: hidden;
+        pointer-events: none;
+    }
+    
+    body.modal-open .chart-screen-overlay {
+        pointer-events: auto;
+    }
+    
+    .modal-on-chart {
+        z-index: 200 !important;
+    }
+    
+    body.modal-open .modal-on-chart {
+        pointer-events: auto;
+    }
+    
+    .chart-screen-overlay + .modal-on-chart > div {
+        box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
+        border: 2px solid var(--color-primary-purple);
+    }
+
+    .font-rajdhani {
+        font-family: 'Rajdhani', sans-serif; 
+    }
+
+    select {
+        color: black; 
+    }
+
+    .grid::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .grid::-webkit-scrollbar-track {
+        background: var(--color-bg--500);
+    }
+
+    .grid::-webkit-scrollbar-thumb {
+        background: var(--color-primary-purple);
+        border-radius: 3px;
+    }
+
+    .grid::-webkit-scrollbar-thumb:hover {
+        background: var(--color-primary-blue);
+    }
+
+    #shareModal .grid {
+        max-height: 40vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        -ms-overflow-style: none;
+        padding-right: 10px;
+    }
+
+    #shareModal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        z-index: 50;
+        padding-top: 5vh;
+        padding-bottom: 120px;
+    }
+
+    #shareModal .bg-[--color-bg--300] {
+        max-height: 70vh;
+        overflow: hidden;
+        width: 90%;
+        max-width: 900px;
+    }
+
+    .selected-ticker {
+        background-color: var(--color-primary-purple) !important;
+        color: white !important;
+        box-shadow: 0 0 10px var(--color-primary-purple);
+    }
+
+    .transition-colors {
+        transition: all 0.3s ease;
+    }
+
+    .selected-ticker {
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(122, 11, 122, 0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(122, 11, 122, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(122, 11, 122, 0);
+        }
+    }
+
+    .ticker-cell {
+        min-width: 120px; 
+        max-width: 200px; 
+    }
+
+    .cb2.active {
+        background-color: var(--color-primary-purple);
+        color: white;
+    }
+    
+    .fixed.bottom-0 {
+        background-color: var(--color-bg--300);
+        box-shadow: 0 -4px 15px rgba(122, 11, 122, 0.5);
+        padding: 18px 0;
+        pointer-events: auto !important;
+        z-index: 200 !important; 
+    }
+    
+    .nav-button.header-button {
+        min-width: 80px; 
+        max-width: 80px;
+        min-height: 40px; 
+        padding: 0.75rem 0; 
+        font-size: 0.675rem; 
+        font-weight: 400;
+    }
+
+    .nav-button {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-weight: 600;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 0 10px rgba(128, 0, 128, 0.6);
+        min-width: 90px;
+        max-width: 90px;
+        min-height: 60px;
+        padding: 1.25rem 0;
+        font-size: 1rem;
+        margin: 0 3px;
+        text-align: center;
+        line-height: 1.2;
+        border-radius: 0.5rem;
+        color: white;
+        background: radial-gradient(circle at 30% 30%, rgba(128, 0, 128, 0.6), transparent),
+                    radial-gradient(circle at 70% 70%, rgba(128, 0, 128, 0.4), transparent),
+                    radial-gradient(circle at 50% 50%, rgba(200, 0, 200, 0.6), transparent);
+        background-size: 200% 200%;
+        animation: lavaLamp 6s infinite ease-in-out;
+    }
+    
+    @keyframes lavaLamp {
+        0% { background-position: 0% 100%; }
+        50% { background-position: 100% 0%; }
+        100% { background-position: 0% 100%; }
+    }
+    
+    .nav-button:hover {
+        transform: translateY(-3px);
+        background-color: rgba(128, 0, 128, 0.8);
+        box-shadow: 0 0 15px rgba(128, 0, 128, 0.8);
+    }
+    
+    .nav-button:active {
+        transform: translateY(1px);
+        box-shadow: 0 0 8px rgba(128, 0, 128, 0.8);
+    }
+    
+    .bubble {
+        position: absolute;
+        bottom: 0;
+        background-color: rgba(200, 0, 200, 0.6);
+        border-radius: 50%;
+        opacity: 1;
+    }
+    
+    @keyframes bubble {
+        0% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(-100px);
+            opacity: 0;
+        }
+    }
+    
+    @media (max-width: 640px) {
+        .fixed.bottom-0 .container {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .nav-button {
+            min-width: 70px;
+            max-width: 70px;
+            min-height: 40px;
+            margin: 2px;
+            font-size: 0.75rem;
+            padding: 0.5rem 0;
+        }
+    }
+    
+    @media (max-width: 375px) {
+        .nav-button {
+            min-width: 60px;
+            max-width: 60px;
+            min-height: 36px;
+            font-size: 0.7rem;
+            padding: 0.45rem 0;
+        }
+    }
+
+    body.modal-open .fixed.bottom-0 {
+        pointer-events: auto;
+    }
+
+    .chart-screen-content {
+        margin-top: -9px;
+    }
+
+    #portfolioModal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        z-index: 50;
+        padding-top: 2vh;
+        padding-bottom: 100px;
+        max-height: calc(100vh - 100px);
+    }
+
+    #portfolioModal .bg-[--color-bg--300] {
+        max-height: calc(100vh - 150px);
+        overflow: auto;
+        width: 90%;
+        max-width: 900px;
+    }
+    
+    #portfolioModal .mt-6 {
+        margin-bottom: 15px;
+    }
+    
+    .portfolio-positions-container {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-primary-purple) var(--color-bg--500);
+        border: 1px solid var(--color-primary-purple);
+        border-radius: 4px;
+        display: block;
+        height: 150px !important;
+        overflow-y: scroll !important;
+    }
+    
+    .portfolio-positions-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .portfolio-positions-container::-webkit-scrollbar-track {
+        background: var(--color-bg--500);
+        border-radius: 4px;
+    }
+    
+    .portfolio-positions-container::-webkit-scrollbar-thumb {
+        background-color: var(--color-primary-purple);
+        border-radius: 4px;
+    }
+    
+    #portfolioModal .grid.max-h-\[300px\] {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-primary-purple) var(--color-bg--500);
+    }
+    
+    #portfolioModal .grid.max-h-\[300px\]::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    #portfolioModal .grid.max-h-\[300px\]::-webkit-scrollbar-track {
+        background: var(--color-bg--500);
+        border-radius: 3px;
+    }
+    
+    #portfolioModal .grid.max-h-\[300px\]::-webkit-scrollbar-thumb {
+        background-color: var(--color-primary-purple);
+        border-radius: 3px;
+    }
+
+    .modal-button {
+        transition: all 0.3s ease;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 0 10px rgba(128, 0, 128, 0.6);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        color: white;
+        background: radial-gradient(circle at 30% 30%, rgba(128, 0, 128, 0.6), transparent),
+                    radial-gradient(circle at 70% 70%, rgba(128, 0, 128, 0.4), transparent),
+                    radial-gradient(circle at 50% 50%, rgba(200, 0, 200, 0.6), transparent);
+        background-size: 200% 200%;
+        animation: lavaLamp 6s infinite ease-in-out;
+    }
+    
+    .modal-button:hover {
+        transform: translateY(-2px);
+        background-color: rgba(128, 0, 128, 0.8);
+        box-shadow: 0 0 15px rgba(128, 0, 128, 0.8);
+    }
+    
+    .modal-button:active {
+        transform: translateY(1px);
+        box-shadow: 0 0 8px rgba(128, 0, 128, 0.8);
+    }
+
+    body.modal-open {
+        overflow: hidden;
+        pointer-events: none;
+    }
+    
+    body.modal-open .chart-screen-overlay,
+    body.modal-open .modal-on-chart,
+    body.modal-open .fixed.bottom-0 {
+        pointer-events: auto;
+    }
+    
+    body.modal-open .fixed.bottom-0 {
+        pointer-events: auto;
+    }
+
+    .news-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        background-color: var(--color-primary-purple, #800080);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .news-screen-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 60px; 
+        background-color: var(--color-primary-black, #191b20);
+        z-index: 100;
+        overflow-y: auto;
+    }
+    
+    .news-screen-content {
+        padding: 20px;
+        padding-bottom: 80px; 
+    }
+    
+    .news-item {
+        background-color: var(--color-bg--300, #262932);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .news-item-title {
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+    
+    .news-item-source {
+        font-size: 0.8rem;
+        color: var(--color-primary-silver, #a0a0a0);
+        margin-bottom: 8px;
+    }
+    
+    .news-item-content {
+        margin-bottom: 10px;
+    }
+    
+    .news-item-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+    }
+    
+    .news-item-date {
+        font-size: 0.8rem;
+        color: var(--color-primary-yellow, #eab308);
+    }
+    
+    .news-item-link {
+        color: var(--color-primary-yellow, #eab308);
+        text-decoration: underline;
+    }
+
+    .load-more-news-button {
+        display: block;
+        background-color: var(--color-primary-purple);
+        color: white;
+        text-align: center;
+        padding: 10px;
+        margin: 20px auto;
+        border-radius: 8px;
+        cursor: pointer;
+        width: 80%;
+        max-width: 300px;
+        font-weight: bold;
+        box-shadow: 0 0 10px rgba(128, 0, 128, 0.6);
+        transition: all 0.3s ease;
+    }
+
+    .load-more-news-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 15px rgba(128, 0, 128, 0.8);
+    }
+
+    .load-more-news-button:active {
+        transform: translateY(1px);
+    }
+
+    .load-more-news-button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: translateY(0);
+        box-shadow: 0 0 5px rgba(128, 0, 128, 0.4);
+    }
+
+    .latest-blocks-table td,
+    .latest-blocks-table th {
+        font-size: 0.9rem; /* Размер по умолчанию */
+        padding: 0.5rem; /* Уменьшенные отступы */
+    }
+
+     /* Для мобильных устройств */
+    @media (max-width: 768px) {
+        .latest-blocks-table td,
+        .latest-blocks-table th {
+            font-size: 0.75rem; /* Меньший размер шрифта */
+            padding: 0.3rem; /* Уменьшенные отступы */
+        }
+    }
+
+</style>
+</body>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const navButtons = document.querySelectorAll('.nav-button');
+        const modalButtons = document.querySelectorAll('.modal-button');
+        const bubbleIntervals = {};
+        
+        function createBubble(button) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.style.left = `${Math.random() * 100}%`;
+            bubble.style.width = `${Math.random() * 3 + 4}px`;
+            bubble.style.height = bubble.style.width;
+            bubble.style.animationDuration = `${Math.random() * 2 + 2}s`;
+            button.appendChild(bubble);
+            bubble.style.animation = `bubble ${bubble.style.animationDuration} linear forwards`;
+            bubble.addEventListener('animationend', () => {
+                bubble.remove();
+            });
+        }
+        
+        function startBubbleGeneration(button) {
+            const buttonId = button.textContent.trim() + (Math.random() * 1000).toFixed(0);
+            if (!bubbleIntervals[buttonId]) {
+                button.setAttribute('data-bubble-id', buttonId);
+                bubbleIntervals[buttonId] = setInterval(() => createBubble(button), 200);
+            }
+        }
+        
+        function stopBubbleGeneration(button) {
+            const buttonId = button.getAttribute('data-bubble-id');
+            if (buttonId && bubbleIntervals[buttonId]) {
+                clearInterval(bubbleIntervals[buttonId]);
+                delete bubbleIntervals[buttonId];
+                
+                const bubbles = button.querySelectorAll('.bubble');
+                bubbles.forEach(bubble => bubble.remove());
+            }
+        }
+        
+        navButtons.forEach(button => {
+            startBubbleGeneration(button);
+            
+            button.addEventListener('mouseenter', () => {
+                stopBubbleGeneration(button);
+            });
+            
+            button.addEventListener('mouseleave', () => {
+                startBubbleGeneration(button);
+            });
+        });
+        
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    const modalButtons = document.querySelectorAll('.modal-button:not([data-bubble-initialized])');
+                    modalButtons.forEach(button => {
+                        button.setAttribute('data-bubble-initialized', 'true');
+                        startBubbleGeneration(button);
+                        
+                        button.addEventListener('mouseenter', () => {
+                            stopBubbleGeneration(button);
+                        });
+                        
+                        button.addEventListener('mouseleave', () => {
+                            startBubbleGeneration(button);
+                        });
+                    });
+                }
+            });
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        document.querySelectorAll('.modal-button').forEach(button => {
+            button.setAttribute('data-bubble-initialized', 'true');
+            startBubbleGeneration(button);
+            
+            button.addEventListener('mouseenter', () => {
+                stopBubbleGeneration(button);
+            });
+            
+            button.addEventListener('mouseleave', () => {
+                startBubbleGeneration(button);
+            });
+        });
+    });
+</script>
 </html>
